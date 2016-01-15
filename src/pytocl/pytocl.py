@@ -169,7 +169,7 @@ class CLVisitor(ast.NodeVisitor):
 
         # Write dimension ints
         for i in range(len(self.dim_shape)):
-            var_name = "dim%s" % (i+1)
+            var_name = func_args[i]
             self.write("int " + var_name + " = get_global_id(" + str(i) + ");")
             self.declare_var(var_name)
 
@@ -464,9 +464,13 @@ def clify(func, dim_shape, arg_info, context=cl.create_some_context(False)):
     def cl_func(*args):
         cl_args = []
 
-        # Check that the output arguments are numpy types
-        if any([arg.is_output and not isinstance(arg, np.ndarray) for arg in args]):
-            raise Exception("At least one output argument passed is not a numpy array")
+        # Check that the non-scalar arguments are numpy types
+        if any([CLArgType.is_array(arg_info[i].arg_type) and not isinstance(arg, np.ndarray) for i, arg in enumerate(args)]):
+            raise Exception("At least one non-scalar argument passed is not a numpy ndarray")
+
+        # Check that the output arguments are not None
+        if any([arg_info[i].is_output and arg is None for i, arg in enumerate(args)]):
+            raise Exception("At least one output argument passed was None")
 
         # Prepare arguments
         for i, info in enumerate(arg_info):
@@ -481,9 +485,8 @@ def clify(func, dim_shape, arg_info, context=cl.create_some_context(False)):
                 cl_args.append(buffers[i])
 
                 # Queue input copying, None means no copying should be done (eg. already copied previously)
-                # Also convert the argument to a numpy array if it isn't already one
                 if not info.is_output and args[i] is not None:
-                    cl.enqueue_copy(queue, buffers[i], args[i] if isinstance(args[i], np.ndarray) else np.array(args[i]))
+                    cl.enqueue_copy(queue, buffers[i], args[i])
 
         # Execute the compiled func
         prog_func = getattr(program, func_name)

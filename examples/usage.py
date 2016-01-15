@@ -1,8 +1,8 @@
 from pytocl import clify, CLArgType, CLArgInfo
 import numpy as np
 
-def parallel_add(dim1, a, b, output):
-    output[dim1] = a[dim1] + b[dim1]
+def parallel_add(i, a, b, output):
+    output[i] = a[i] + b[i]
 
 # Our vectors will have 16 elements
 array_size = 16
