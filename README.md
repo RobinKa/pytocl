@@ -96,57 +96,25 @@ Test hardware was an AMD Phenom II 1090T and an AMD 6970
 The original functions and OpenCL with CPU are orders of magnitude slower (not shown here, you can uncomment the line in `benchmarks.py` though).
 Numpy versions are compared to the clified GPU versions. 
 
-## MatMult for square matrices of different sizes, running different amount of times
-- Times 1000
-Benchmark NP MatMult (16, 16) (16, 16) 0.01433813515404891 seconds
-Benchmark CL GPU MatMult (16, 16) (16, 16) 1.2153505543302292 seconds
-- Times 1000
-Benchmark NP MatMult (32, 32) (32, 32) 0.03683973801139517 seconds
-Benchmark CL GPU MatMult (32, 32) (32, 32) 1.2517033589464583 seconds
-- Times 1000
-Benchmark NP MatMult (64, 64) (64, 64) 0.05826480739870554 seconds
-Benchmark CL GPU MatMult (64, 64) (64, 64) 1.300114120649412 seconds
-- Times 1000
-Benchmark NP MatMult (128, 128) (128, 128) 0.17525837781058762 seconds
-Benchmark CL GPU MatMult (128, 128) (128, 128) 1.352880394016558 seconds
-- Times 1000
-Benchmark NP MatMult (256, 256) (256, 256) 0.6169138116715951 seconds
-Benchmark CL GPU MatMult (256, 256) (256, 256) 2.1810568102929278 seconds
-- Times 100
-Benchmark NP MatMult (512, 512) (512, 512) 0.4627876587666879 seconds
-Benchmark CL GPU MatMult (512, 512) (512, 512) 0.7033748004285467 seconds
-- Times 10
-Benchmark NP MatMult (1024, 1024) (1024, 1024) 0.28274990257141575 seconds
-Benchmark CL GPU MatMult (1024, 1024) (1024, 1024) 0.3567916453068758 seconds
-- Times 10
-Benchmark NP MatMult (2048, 2048) (2048, 2048) 1.9066243754443661 seconds
-Benchmark CL GPU MatMult (2048, 2048) (2048, 2048) 2.8222630250492724 seconds
+##Matrix Multiply 100 times for matrices of same size
 
-## Sigmoid neural network layer
-- Times 1000
-Benchmark NP NN Layer (16, 16) (16, 16) 0.030530137210176278 seconds
-Benchmark CL GPU NN Layer (16, 16) (16, 16) 1.280196295897941 seconds
-- Times 1000
-Benchmark NP NN Layer (32, 32) (32, 32) 0.08969303361181247 seconds
-Benchmark CL GPU NN Layer (32, 32) (32, 32) 1.2955175867323945 seconds
-- Times 1000
-Benchmark NP NN Layer (64, 64) (64, 64) 0.1607618426364219 seconds
-Benchmark CL GPU NN Layer (64, 64) (64, 64) 1.322959412439289 seconds
-- Times 1000
-Benchmark NP NN Layer (128, 128) (128, 128) 0.5344054900832376 seconds
-Benchmark CL GPU NN Layer (128, 128) (128, 128) 1.4247456031422985 seconds
-- Times 1000
-Benchmark NP NN Layer (256, 256) (256, 256) 1.9637598493663297 seconds
-Benchmark CL GPU NN Layer (256, 256) (256, 256) 2.2975419361958025 seconds
-- Times 100
-Benchmark NP NN Layer (512, 512) (512, 512) 2.7003654095702103 seconds
-Benchmark CL GPU NN Layer (512, 512) (512, 512) 0.6785182194943751 seconds
-- Times 10
-Benchmark NP NN Layer (1024, 1024) (1024, 1024) 1.2363053125467047 seconds
-Benchmark CL GPU NN Layer (1024, 1024) (1024, 1024) 0.38105275949876116 seconds
-- Times 10
-Benchmark NP NN Layer (2048, 2048) (2048, 2048) 5.796788069433404 seconds
-Benchmark CL GPU NN Layer (2048, 2048) (2048, 2048) 2.8163665354116247 seconds
+Matrix size | Runtime Numpy | Runtime OpenCL GPU | Relative Numpy | Relative OpenCL GPU
+------ | ------ | ------ | ------ | ------
+(128, 128) | 0.05s | 0.14s | 100.00% | 297.44%
+(256, 256) | 0.09s | 0.24s | 100.00% | 277.20%
+(512, 512) | 0.58s | 0.67s | 100.00% | 115.19%
+(1024, 1024) | 3.39s | 3.53s | 100.00% | 104.34%
+(2048, 2048) | 20.00s | 28.42s | 100.00% | 142.12%
+
+##Neural Network sigmoid layer 100 times for input and weight matrices of same size
+
+Matrix size | Runtime Numpy | Runtime OpenCL GPU | Relative Numpy | Relative OpenCL GPU
+------ | ------ | ------ | ------ | ------
+(128, 128) | 0.05s | 0.13s | 100.00% | 263.15%
+(256, 256) | 0.18s | 0.23s | 100.00% | 125.61%
+(512, 512) | 2.60s | 0.66s | 100.00% | 25.52%
+(1024, 1024) | 11.41s | 4.15s | 100.00% | 36.35%
+(2048, 2048) | 59.99s | 28.48s | 100.00% | 47.47%
 
 # Contributors
 - Toraxxx (Developer)

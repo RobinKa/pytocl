@@ -3,6 +3,7 @@ from testcode import matrix_mult, nn_layer
 import pyopencl as cl
 import numpy as np
 from time import clock
+import sys
 
 class Benchmark:
     """A simple class to benchmark the runtimes of functions
@@ -20,15 +21,17 @@ class Benchmark:
         times -- how often to run the benchmark (default: 100)
         """
 
-        for benchmark in self.benchmarks:
-            t = self.get_runtime(benchmark[1], times)
-            print("Benchmark", benchmark[0], t, "seconds")
+        times = [self.get_runtime(b[1], times) for b in self.benchmarks]
+        rel_times = ["{0:.2f}%".format(100.0 * t / times[0]) for t in times]
+
+        print(" | ".join(["{0:.2f}".format(t) + "s" for t in times] + rel_times))
+            
 
     def add_func(self, name, func):
         """Adds a function to the list with a name that will be printed
 
         Keyword arguments:
-        name -- the name of the benchmark printed when running it
+        name -- the name of the benchmark
         func -- a function to be benchmarked with no parameters
         """
 
@@ -146,32 +149,25 @@ class NNLayerBenchmark(Benchmark):
         self.add_func("CL GPU NN Layer %s %s" % (shape_input, shape_weights), cl_gpu_func)
     
 if __name__ == "__main__":
-    # Run the matrix multiply benchmark for quadratic matrices with rows and columns 2^4 to 2^11
-    for i in range(4, 12):
+    times = 100
+
+    print("##Matrix Multiply 100 times for matrices of same size")
+    print("")
+    print("Matrix size | Runtime Numpy | Runtime OpenCL GPU | Relative Numpy | Relative OpenCL GPU")
+    print(" | ".join(["------"]*5))
+    for i in range(7, 12):
         size = 2 ** i
-        times = 1000
-
-        if i >= 9:
-            times = 100
-
-        if i >= 10:
-            times = 10
-
-        print("---- Times", times)
-
-        MatMultBenchmark((size, size), (size, size)).run(times)
+        shape = (size, size)
+        sys.stdout.write("%s | " % (shape,))
+        MatMultBenchmark(shape, shape).run(times)
         
-    # Run the neural network layer benchmark for quadratic matrices with rows and columns 2^4 to 2^11
-    for i in range(4, 12):
+    print("")
+    print("##Neural Network sigmoid layer 100 times for input and weight matrices of same size")
+    print("")
+    print("Matrix size | Runtime Numpy | Runtime OpenCL GPU | Relative Numpy | Relative OpenCL GPU")
+    print(" | ".join(["------"]*5))
+    for i in range(7, 12):
         size = 2 ** i
-        times = 1000
-
-        if i >= 9:
-            times = 100
-
-        if i >= 10:
-            times = 10
-
-        print("---- Times", times)
-
-        NNLayerBenchmark((size, size), (size, size)).run(times)
+        shape = (size, size)
+        sys.stdout.write("%s | " % (shape,))
+        NNLayerBenchmark(shape, shape).run(times)
