@@ -73,15 +73,16 @@ You can also pass None for arguments meaning no data will be copied and the curr
 # Limitations / Todo list
 - Only simple python functions are supported.
   - All mathematical and logical expressions
+  - All literals except for strings
   - If statements
+  - While loops
   - For loops currently only support range()
   - Function calls get converted to use the same name in the kernel, but the called functions themselves aren't converted if they aren't available yet
-  - Type inference for local variables is currently limited. Defaults to `float`, variables starting with `index` become `int`
+  - Type inference for local variables is currently limited. Defaults to `float`, variables starting with `i_` become `int`, variables starting with `b_` become `bool`
   - `return` is not supported, outputs have to be passed as an argument
   - Array slices are not supported
   - List comprehensions and other python-specific constructs are not supported
 - Only global memory is used for array types
-- Would be nice to remove the numpy dependency and use a different or create an own buffer interface
 - There is no way to communicate between multiple converted functions (to prevent copying)
 - Only single functions can be converted
 - The source code of the function has to be available for conversion (which is often the case)
