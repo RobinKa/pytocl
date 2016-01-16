@@ -201,5 +201,14 @@ class TestIfStatement(unittest.TestCase):
         expected_if = "if((dim>4))"
         self.assertIn(expected_if, kernel)
 
+""" Tests for miscalleneous things """
+class SomeClass:
+    def class_func(dim):
+        pass
+
+class TestMisc(unittest.TestCase):
+    def test_class_func(self):
+        kernel = func_to_kernel(SomeClass.class_func, (1,), [])
+
 if __name__ == "__main__":
     unittest.main()

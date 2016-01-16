@@ -495,6 +495,15 @@ def func_to_kernel(func, dim_shape, arg_info):
 
     # TODO: Remove initial indents
     source = inspect.getsource(func)
+
+    # Remove the unused indents (when a function isnt declared at root)
+    unused_indents = source.split("def", 1)[0]
+
+    # Make sure all characters are tabs or spaces
+    assert(all([c == " " or c == "\t" for c in unused_indents]))
+
+    source = source[len(unused_indents):].replace("\n" + unused_indents, "\n")
+
     tree = ast.parse(source)
 
     visitor = CLVisitor(func_name, dim_shape, arg_info)
