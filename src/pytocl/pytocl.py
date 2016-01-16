@@ -196,8 +196,12 @@ class CLVisitor(ast.NodeVisitor):
 
             self.declare_var(node.id)
 
-            # TODO: Type inference
-            type_name = "int" if node.id.startswith("index") else "float"
+            # TODO: Proper type inference
+            type_name = "float"
+            if node.id.startswith("i_"):
+                type_name = "int"
+            elif node.id.startswith("b_"):
+                type_name = "bool"
 
             self.append(type_name + " " + node.id)
         else:

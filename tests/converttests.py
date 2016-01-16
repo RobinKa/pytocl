@@ -79,6 +79,11 @@ def num_literal(dim):
     f_dec_pre = .4
     f_dec_post = 4.
 
+def name_constant_literal(dim):
+    b_true = True
+    b_false = False
+    # TODO: Test None
+
 class TestLiterals(unittest.TestCase):
     def test_num(self):
         kernel = func_to_kernel(num_literal, (1,), [])
@@ -90,6 +95,35 @@ class TestLiterals(unittest.TestCase):
         self.assertIn(expected_float_dec_pre, kernel)
         expected_float_dec_post = "f_dec_post=4.0f"
         self.assertIn(expected_float_dec_post, kernel)
+
+    def test_name_constant(self):
+        kernel = func_to_kernel(name_constant_literal, (1,), [])
+        expected_true = "b_true=true;"
+        self.assertIn(expected_true, kernel)
+        expected_false = "b_false=false;"
+        self.assertIn(expected_false, kernel)
+
+"""Tests for Comparisons"""
+
+def comparisons(dim):
+    a = 3
+    b = 4
+    b_is_greater = a > b
+    b_is_equal = a == b
+    b_is_less = a < b
+    b_is_not_equal = a != b
+
+class TestComparisons(unittest.TestCase):
+    def test_comparisons(self):
+        kernel = func_to_kernel(comparisons, (1,), [])
+        expected_greater = "bool b_is_greater=(a>b);"
+        self.assertIn(expected_greater, kernel)
+        expected_is_equal = "bool b_is_equal=(a==b);"
+        self.assertIn(expected_is_equal, kernel)
+        expected_is_less = "bool b_is_less=(a<b);"
+        self.assertIn(expected_is_less, kernel)
+        expected_is_not_equal = "bool b_is_not_equal=(a!=b);"
+        self.assertIn(expected_is_not_equal, kernel)
 
 """Tests for For loops"""
 
