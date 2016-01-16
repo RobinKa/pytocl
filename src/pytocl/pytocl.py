@@ -12,6 +12,11 @@ class CLArgType(Enum):
     int32 = 3,
     int32_array = 4,
 
+    def get_element_byte_size(t):
+        if t in [CLArgType.float32, CLArgType.float32_array, CLArgType.int32, CLArgType.int32_array]:
+            return 4
+        raise Exception("Unknown type")
+
     def is_array(t):
         return t == CLArgType.float32_array or t == CLArgType.int32_array
 
@@ -28,16 +33,18 @@ class CLArgInfo():
     get_cl_type_decl -- Returns the CL type string of the parameter in the kernel
     """
 
-    def __init__(self, arg_type, is_output=False, array_size=0, element_size=4):
+    def __init__(self, arg_type, is_output=False, array_size=0):
         """Initializes a CLArgInfo
 
         Keyword arguments:
         arg_type -- The CLArgType of the argument
         is_output -- Whether the argument is used as an output (default: False)
         array_size -- The array size of the argument, 0 for scalars (default: 0)
-        element_size -- The size of one element in bytes (default: 4)
 
         """
+
+        element_size = CLArgType.get_element_byte_size(arg_type)
+
         self.arg_type = arg_type
         self.is_output = is_output
         self.array_size = array_size
@@ -170,7 +177,7 @@ class CLVisitor(ast.NodeVisitor):
         # Write dimension ints
         for i in range(len(self.dim_shape)):
             var_name = func_args[i]
-            self.write("int " + var_name + " = get_global_id(" + str(i) + ");")
+            self.write("int " + var_name + "=get_global_id(" + str(i) + ");")
             self.declare_var(var_name)
 
         for arg in func_args:
@@ -184,6 +191,9 @@ class CLVisitor(ast.NodeVisitor):
 
     def visit_Name(self, node):
         if not self.is_var_declared(node.id):
+            if not isinstance(node.ctx, ast.Store):
+                raise Exception("Tried to load or delete a variable which was not yet declared")
+
             self.declare_var(node.id)
 
             # TODO: Type inference
@@ -202,6 +212,21 @@ class CLVisitor(ast.NodeVisitor):
                 s += ".f"
 
         self.append(s)
+
+    def visit_NameConstant(self, node):
+        value = node.value
+
+        if value == True:
+            self.append("true")
+        elif value == False:
+            self.append("false")
+        elif value == None:
+            self.append("NULL")
+        else:
+            raise Exception("Unknown Name Constant")
+
+    def visit_String(self, node):
+        self.append(node.s)
 
     def visit_UnaryOp(self, node):
         op_type = type(node.op)
@@ -353,9 +378,14 @@ class CLVisitor(ast.NodeVisitor):
         body = node.body
         orelse = node.orelse # TODO
 
+        if len(orelse) != 0:
+            raise NotImplementedError("For loop orelse not yet implemented")
+
+        # Check that the iter function is range()
         if not isinstance(iter, ast.Call) or not isinstance(iter.func, ast.Name) or not iter.func.id == "range":
             raise Exception("Unsupported for loop:", ast.dump(node))
 
+        # Handle the different arguments of range()
         if len(iter.args) == 1:
             self.write("for(int " + iter_var.id + "=0;" + iter_var.id + "<")
             self.visit(iter.args[0])
@@ -388,6 +418,46 @@ class CLVisitor(ast.NodeVisitor):
 
         self.write("}")
 
+    def visit_While(self, node):
+        test = node.test
+        body = node.body
+        orelse = node.orelse # TODO
+
+        if len(orelse) != 0:
+            raise NotImplementedError("For loop orelse not yet implemented")
+
+        self.write("while(")
+        self.visit(test)
+        self.append(")")
+
+        self.write("{")
+
+        self.push_block()
+
+        for b in body:
+            self.visit(b)
+
+        self.pop_block()
+
+        self.write("}")
+
+    def visit_Break(self, node):
+        self.write("break;")
+
+    def visit_Continue(self, node):
+        self.write("continue;")
+
+    def visit_IfExp(self, node):
+        test = node.test
+        body = node.body
+        orelse = node.orelse
+
+        self.visit(test)
+        self.append("?")
+        self.visit(body)
+        self.append(":")
+        self.visit(orelse)
+
     def visit_Call(self, node):
         func = node.func
         args = node.args
@@ -419,6 +489,7 @@ def func_to_kernel(func, dim_shape, arg_info):
 
     func_name = func.__name__
 
+    # TODO: Remove initial indents
     source = inspect.getsource(func)
     tree = ast.parse(source)
 
@@ -462,6 +533,8 @@ def clify(func, dim_shape, arg_info, context=cl.create_some_context(False)):
     program = cl.Program(context, kernel).build()
 
     def cl_func(*args):
+        """Calls the clified function with all original arguments except for the global ids"""
+
         cl_args = []
 
         # Check that the non-scalar arguments are numpy types

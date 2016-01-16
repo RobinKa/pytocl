@@ -1,1 +1,1 @@
-from .pytocl import clify, CLArgType, CLArgInfo
+from .pytocl import clify, func_to_kernel, CLArgType, CLArgInfo
