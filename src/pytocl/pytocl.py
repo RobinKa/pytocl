@@ -493,7 +493,6 @@ def func_to_kernel(func, dim_shape, arg_info):
 
     func_name = func.__name__
 
-    # TODO: Remove initial indents
     source = inspect.getsource(func)
 
     # Remove the unused indents (when a function isnt declared at root)
@@ -551,7 +550,7 @@ def clify(func, dim_shape, arg_info, context=cl.create_some_context(False)):
         cl_args = []
 
         # Check that the non-scalar arguments are numpy types
-        if any([CLArgType.is_array(arg_info[i].arg_type) and not isinstance(arg, np.ndarray) for i, arg in enumerate(args)]):
+        if any([arg is not None and CLArgType.is_array(arg_info[i].arg_type) and not isinstance(arg, np.ndarray) for i, arg in enumerate(args)]):
             raise Exception("At least one non-scalar argument passed is not a numpy ndarray")
 
         # Check that the output arguments are not None

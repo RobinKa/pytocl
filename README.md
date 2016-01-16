@@ -100,21 +100,21 @@ Numpy versions are compared to the clified GPU versions.
 
 Matrix size | Runtime Numpy | Runtime OpenCL GPU | Relative Numpy | Relative OpenCL GPU
 ------ | ------ | ------ | ------ | ------
-(128, 128) | 0.05s | 0.14s | 100.00% | 297.44%
-(256, 256) | 0.09s | 0.24s | 100.00% | 277.20%
-(512, 512) | 0.58s | 0.67s | 100.00% | 115.19%
-(1024, 1024) | 3.39s | 3.53s | 100.00% | 104.34%
-(2048, 2048) | 20.00s | 28.42s | 100.00% | 142.12%
+(128, 128) | 0.02s | 0.06s | 100.00% | 394.49%
+(256, 256) | 0.09s | 0.16s | 100.00% | 190.41%
+(512, 512) | 0.39s | 0.73s | 100.00% | 187.50%
+(1024, 1024) | 2.58s | 3.80s | 100.00% | 147.51%
+(2048, 2048) | 22.35s | 27.97s | 100.00% | 125.15%
 
-##Neural Network sigmoid layer 100 times for input and weight matrices of same size
+##Neural Network sigmoid layer 100 times for input and weight matrices of same size, weights are only copied once
 
 Matrix size | Runtime Numpy | Runtime OpenCL GPU | Relative Numpy | Relative OpenCL GPU
 ------ | ------ | ------ | ------ | ------
-(128, 128) | 0.05s | 0.13s | 100.00% | 263.15%
-(256, 256) | 0.18s | 0.23s | 100.00% | 125.61%
-(512, 512) | 2.60s | 0.66s | 100.00% | 25.52%
-(1024, 1024) | 11.41s | 4.15s | 100.00% | 36.35%
-(2048, 2048) | 59.99s | 28.48s | 100.00% | 47.47%
+(128, 128) | 0.05s | 0.05s | 100.00% | 111.94%
+(256, 256) | 0.20s | 0.13s | 100.00% | 67.55%
+(512, 512) | 2.58s | 0.56s | 100.00% | 21.60%
+(1024, 1024) | 11.34s | 3.62s | 100.00% | 31.93%
+(2048, 2048) | 60.99s | 27.26s | 100.00% | 44.70%
 
 # Contributors
 - Toraxxx (Developer)
