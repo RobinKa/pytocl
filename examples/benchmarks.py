@@ -43,6 +43,12 @@ class Benchmark:
 
         return clock() - start_time
 
+def get_shape_size(shape):
+    f = 1
+    for x in shape:
+        f *= x
+    return f
+
 def get_cl_context(device_type):
     return cl.Context(cl.get_platforms()[0].get_devices(device_type))
 
@@ -112,7 +118,7 @@ def get_cl_nn_layer(shape_input, shape_weights, device_type):
     desc_weights = CLArgDesc(CLArgType.float32_array, shape_weights_size)
     desc_rows_input = CLArgDesc(CLArgType.int32)
     desc_rows_weights = CLArgDesc(CLArgType.int32)
-    desc_bias = CLArgDesc(CLArgType.int32)
+    desc_bias = CLArgDesc(CLArgType.float32)
     desc_output = CLArgDesc(CLArgType.float32_array, shape_output_size)
 
     func_desc = (CLFuncDesc(nn_layer, shape_output)
@@ -152,6 +158,82 @@ def get_np_nn_layer(shape_input, shape_weights):
         output = 1.0 / (1.0 + np.exp(-(np.dot(input, weights) + bias)))
 
     return np_func
+
+
+def get_cl_mlp(batch_size, input_size, shape_weights_a, shape_weights_b, device_type):
+    shape_input = (batch_size, input_size)
+    shape_aux_a = (batch_size, shape_weights_a[1])
+    shape_output = (batch_size, shape_weights_b[1])
+
+    np.random.seed(123)
+    input = np.random.rand(*shape_input).astype(np.float32)
+    weights_a = np.random.rand(*shape_weights_a).astype(np.float32)
+    bias_a = np.float32(np.random.rand())
+    weights_b = np.random.rand(*shape_weights_b).astype(np.float32)
+    bias_b = np.float32(np.random.rand())
+    output = np.zeros(shape_output).astype(np.float32)
+
+    desc_input = CLArgDesc(CLArgType.float32_array, get_shape_size(shape_input))
+    desc_weights_a = CLArgDesc(CLArgType.float32_array, get_shape_size(shape_weights_a))
+    desc_rows_input = CLArgDesc(CLArgType.int32)
+    desc_rows_weights_a = CLArgDesc(CLArgType.int32)
+    desc_bias_a = CLArgDesc(CLArgType.float32)
+    desc_aux_a = CLArgDesc(CLArgType.float32_array, get_shape_size(shape_aux_a))
+
+    desc_weights_b = CLArgDesc(CLArgType.float32_array, get_shape_size(shape_weights_b))
+    desc_rows_aux_a = CLArgDesc(CLArgType.int32)
+    desc_rows_weights_b = CLArgDesc(CLArgType.int32)
+    desc_bias_b = CLArgDesc(CLArgType.float32)
+    desc_output = CLArgDesc(CLArgType.float32_array, get_shape_size(shape_output))
+
+    func_desc_a = (CLFuncDesc(nn_layer, shape_aux_a)
+                .arg(desc_input).copy_in()
+                .arg(desc_weights_a).copy_in()
+                .arg(desc_rows_input).copy_in()
+                .arg(desc_rows_weights_a).copy_in()
+                .arg(desc_bias_a).copy_in()
+                .arg(desc_aux_a, True))
+
+    func_desc_b = (CLFuncDesc(nn_layer, shape_output)
+                .arg(desc_aux_a)
+                .arg(desc_weights_b).copy_in()
+                .arg(desc_rows_aux_a).copy_in()
+                .arg(desc_rows_weights_b).copy_in()
+                .arg(desc_bias_b).copy_in()
+                .arg(desc_output, True)).copy_out()
+
+    func_clified = CLFunc(func_desc_a, func_desc_b).compile(get_cl_context(device_type))
+
+    # Copy the weight matrices only once (like in a realistic scenario)
+    copied = False
+    def cl_func():
+        nonlocal copied
+        func_clified({desc_input: input, desc_weights_a: None if copied else weights_a, desc_rows_input: shape_input[0], 
+                             desc_rows_weights_a: shape_weights_a[0], desc_bias_a: bias_a,
+                             desc_weights_b: None if copied else weights_b, desc_rows_aux_a: shape_aux_a[0], 
+                             desc_rows_weights_b: shape_weights_b[0], desc_bias_b: bias_b,
+                             desc_output: output})
+        copied = True
+
+    return cl_func
+
+def get_np_mlp(batch_size, input_size, shape_weight_a, shape_weights_b):
+    shape_input = (batch_size, input_size)
+    shape_output = (batch_size, shape_weights_b[1])
+
+    np.random.seed(123)
+    input = np.random.rand(*shape_input).astype(np.float32)
+    weights_a = np.random.rand(*shape_weight_a).astype(np.float32)
+    bias_a = np.random.rand()
+    weights_b = np.random.rand(*shape_weights_b).astype(np.float32)
+    bias_b = np.random.rand()
+    output = np.zeros(shape_output).astype(np.float32)
+
+    def np_func():
+        output = np.dot(input, weights_a) + bias_a
+        output = np.dot(output, weights_b) + bias_b
+
+    return np_func
     
 if __name__ == "__main__":
     repeat = 100
@@ -189,3 +271,19 @@ if __name__ == "__main__":
         shape = (size, size)
         times, rel_times = get_times(get_np_nn_layer(shape, shape), get_cl_nn_layer(shape, shape, cl.device_type.GPU))
         print_row(shape, times, rel_times)
+    
+    # Benchmark 2 layer NN
+    print("")
+    print_header("2 layer MLP with 128 batch size and input vectors / weight matrices of same size %s times" % repeat)
+    for i in range(7, 12):
+        size = 2 ** i
+
+        batch_size = 128
+        input_size = size
+        weights_a_shape = (size, size)
+        weights_b_shape = (size, size)
+        
+        times, rel_times = get_times(get_np_mlp(batch_size, input_size, weights_a_shape, weights_b_shape), 
+                                     get_cl_mlp(batch_size, input_size, weights_a_shape, weights_b_shape, cl.device_type.GPU))
+
+        print_row(weights_a_shape, times, rel_times)
