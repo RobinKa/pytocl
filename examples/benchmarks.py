@@ -230,8 +230,8 @@ def get_np_mlp(batch_size, input_size, shape_weight_a, shape_weights_b):
     output = np.zeros(shape_output).astype(np.float32)
 
     def np_func():
-        output = np.dot(input, weights_a) + bias_a
-        output = np.dot(output, weights_b) + bias_b
+        output = 1.0 / (1.0 + np.exp(-(np.dot(input, weights_a) + bias_a)))
+        output = 1.0 / (1.0 + np.exp(-(np.dot(output, weights_b) + bias_b)))
 
     return np_func
     
@@ -254,7 +254,7 @@ if __name__ == "__main__":
         for func in funcs:
             benchmark.add_func(func)
         return benchmark.run(repeat)
-
+    
     # Benchmark Matrix Multiplication
     print_header("Matrix Multiply %s times for matrices of same size" % repeat)
     for i in range(7, 12):
@@ -265,7 +265,7 @@ if __name__ == "__main__":
 
     # Benchmark Sigmoid Neural Network Layer
     print("")
-    print_header("Neural Network sigmoid layer %s times for input and weight matrices of same size" % repeat)
+    print_header("Neural Network sigmoid layer forward pass %s times for input and weight matrices of same size" % repeat)
     for i in range(7, 12):
         size = 2 ** i
         shape = (size, size)
@@ -274,7 +274,7 @@ if __name__ == "__main__":
     
     # Benchmark 2 layer NN
     print("")
-    print_header("2 layer MLP with 128 batch size and input vectors / weight matrices of same size %s times" % repeat)
+    print_header("2 layer MLP forward pass with 128 batch size and input vectors / weight matrices of same size %s times" % repeat)
     for i in range(7, 12):
         size = 2 ** i
 

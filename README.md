@@ -131,7 +131,7 @@ Matrix size | Runtime Numpy | Runtime OpenCL GPU | Relative Numpy | Relative Ope
 (1024, 1024) | 2.64s | 3.64s | 100.00% | 137.71%
 (2048, 2048) | 17.76s | 28.07s | 100.00% | 158.03%
 
-##Neural Network sigmoid layer 100 times for input and weight matrices of same size
+##Neural Network sigmoid layer forward pass 100 times for input and weight matrices of same size
 
 Matrix size | Runtime Numpy | Runtime OpenCL GPU | Relative Numpy | Relative OpenCL GPU
 ------ | ------ | ------ | ------ | ------
@@ -141,17 +141,15 @@ Matrix size | Runtime Numpy | Runtime OpenCL GPU | Relative Numpy | Relative Ope
 (1024, 1024) | 11.52s | 3.65s | 100.00% | 31.66%
 (2048, 2048) | 60.01s | 27.40s | 100.00% | 45.66%
 
-##2 layer MLP with 128 batch size and input vectors / weight matrices of same size 100 times
+##2 layer MLP forward pass with 128 batch size and input vectors / weight matrices of same size 100 times
 
 Matrix size | Runtime Numpy | Runtime OpenCL GPU | Relative Numpy | Relative OpenCL GPU
 ------ | ------ | ------ | ------ | ------
-(128, 128) | 0.04s | 0.14s | 100.00% | 319.58%
-(256, 256) | 0.14s | 0.19s | 100.00% | 133.80%
-(512, 512) | 0.41s | 0.40s | 100.00% | 97.48%
-(1024, 1024) | 1.23s | 1.22s | 100.00% | 99.15%
-(2048, 2048) | 3.72s | 3.78s | 100.00% | 101.52%
-(4096, 4096) | 13.39s | 12.98s | 100.00% | 96.93%
-(8192, 8192) | 61.08s | 49.43s | 100.00% | 80.94%
+(128, 128) | 0.09s | 0.07s | 100.00% | 77.65%
+(256, 256) | 0.43s | 0.11s | 100.00% | 26.72%
+(512, 512) | 1.35s | 0.32s | 100.00% | 23.80%
+(1024, 1024) | 3.08s | 1.08s | 100.00% | 35.09%
+(2048, 2048) | 7.71s | 3.56s | 100.00% | 46.17%
 
 # Contributors
 - Toraxxx (Developer)
