@@ -38,8 +38,8 @@ dim_shape = (array_size,)
 
 # Create the descriptors for the arguments of the function, excluding the dimension
 arg_desc_a = CLArgDesc(CLArgType.float32_array, array_size=array_size) # a
-arg_desc_b = CLArgDesc(CLArgType.float32_array, array_size=array_size) # a
-arg_desc_output = CLArgDesc(CLArgType.float32_array, array_size=array_size, is_output=True) # a
+arg_desc_b = CLArgDesc(CLArgType.float32_array, array_size=array_size) # b
+arg_desc_output = CLArgDesc(CLArgType.float32_array, array_size=array_size, is_output=True) # output
 ```
 
 Next we need to create the descriptor for the function itself which has the gloabl id / dimension shape information and more information about its arguments (ie. whether they're copied from host to device before execution and whether theyre copied from device to host after execution)
@@ -125,21 +125,21 @@ Numpy versions are compared to the clified GPU versions.
 
 Matrix size | Runtime Numpy | Runtime OpenCL GPU | Relative Numpy | Relative OpenCL GPU
 ------ | ------ | ------ | ------ | ------
-(128, 128) | 0.02s | 0.06s | 100.00% | 394.49%
-(256, 256) | 0.09s | 0.16s | 100.00% | 190.41%
-(512, 512) | 0.39s | 0.73s | 100.00% | 187.50%
-(1024, 1024) | 2.58s | 3.80s | 100.00% | 147.51%
-(2048, 2048) | 22.35s | 27.97s | 100.00% | 125.15%
+(128, 128) | 0.02s | 0.08s | 100.00% | 372.00%
+(256, 256) | 0.08s | 0.16s | 100.00% | 200.18%
+(512, 512) | 0.40s | 0.60s | 100.00% | 148.81%
+(1024, 1024) | 2.64s | 3.64s | 100.00% | 137.71%
+(2048, 2048) | 17.76s | 28.07s | 100.00% | 158.03%
 
-##Neural Network sigmoid layer 100 times for input and weight matrices of same size, weights are only copied once
+##Neural Network sigmoid layer 100 times for input and weight matrices of same size
 
 Matrix size | Runtime Numpy | Runtime OpenCL GPU | Relative Numpy | Relative OpenCL GPU
 ------ | ------ | ------ | ------ | ------
-(128, 128) | 0.05s | 0.05s | 100.00% | 111.94%
-(256, 256) | 0.20s | 0.13s | 100.00% | 67.55%
-(512, 512) | 2.58s | 0.56s | 100.00% | 21.60%
-(1024, 1024) | 11.34s | 3.62s | 100.00% | 31.93%
-(2048, 2048) | 60.99s | 27.26s | 100.00% | 44.70%
+(128, 128) | 0.05s | 0.05s | 100.00% | 114.13%
+(256, 256) | 0.19s | 0.13s | 100.00% | 70.13%
+(512, 512) | 2.62s | 0.54s | 100.00% | 20.62%
+(1024, 1024) | 11.52s | 3.65s | 100.00% | 31.66%
+(2048, 2048) | 60.01s | 27.40s | 100.00% | 45.66%
 
 # Contributors
 - Toraxxx (Developer)

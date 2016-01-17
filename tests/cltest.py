@@ -11,7 +11,7 @@ class SingleFuncTest(unittest.TestCase):
 
         desc_a = CLArgDesc(CLArgType.float32_array, array_size=100)
         desc_b = CLArgDesc(CLArgType.float32_array, array_size=100)
-        desc_c = CLArgDesc(CLArgType.float32_array, array_size=100, is_output=True)
+        desc_c = CLArgDesc(CLArgType.float32_array, array_size=100)
 
         desc_add_func = (CLFuncDesc(add_func, shape)
                         .arg(desc_a, False).arg(desc_b, False).arg(desc_c, True)
@@ -31,7 +31,7 @@ class SingleFuncTest(unittest.TestCase):
 
         desc_a = CLArgDesc(CLArgType.int32_array, array_size=100)
         desc_b = CLArgDesc(CLArgType.int32_array, array_size=100)
-        desc_c = CLArgDesc(CLArgType.int32_array, array_size=100, is_output=True)
+        desc_c = CLArgDesc(CLArgType.int32_array, array_size=100)
 
         desc_add_func = (CLFuncDesc(add_func, shape)
                         .arg(desc_a, False).arg(desc_b, False).arg(desc_c, True)
@@ -60,8 +60,8 @@ class SequentialFuncTest(unittest.TestCase):
 
         desc_a = CLArgDesc(CLArgType.float32_array, array_size=100)
         desc_b = CLArgDesc(CLArgType.float32_array, array_size=100)
-        desc_c = CLArgDesc(CLArgType.float32_array, array_size=100, is_output=True)
-        desc_d = CLArgDesc(CLArgType.float32_array, array_size=100, is_output=True)
+        desc_c = CLArgDesc(CLArgType.float32_array, array_size=100)
+        desc_d = CLArgDesc(CLArgType.float32_array, array_size=100)
 
         # C = A + B
         desc_func_f = (CLFuncDesc(add_func, shape)

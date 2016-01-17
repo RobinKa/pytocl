@@ -98,10 +98,9 @@ class CLFunc:
             for func_desc in self.func_descs:
                 # Copy inputs
                 for arg_desc in func_desc.copy_in_args:
-                    # Allow not passing args for input-copies, those wont get copied
-                    if arg_desc in args.keys() or args[arg_desc] is not None:
-                        # If a buffer is none it means the argument is a scalar and is used directly
-                        if buffers[arg_desc] is not None:
+                    # Allow not passing args for input-copies or passing None, those wont get copied.
+                    # If a buffer is none it means the argument is a scalar and is used directly
+                    if arg_desc in args.keys() and args[arg_desc] is not None and buffers[arg_desc] is not None:
                             cl.enqueue_copy(queue, buffers[arg_desc], args[arg_desc])
 
                 # Create the parameter list for the function
