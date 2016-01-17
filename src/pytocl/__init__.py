@@ -1,1 +1,3 @@
-from .pytocl import clify, func_to_kernel, CLArgType, CLArgInfo
+from .descriptors import CLArgType, CLArgDesc, CLFuncDesc
+from .converter import func_to_kernel
+from .pytocl import CLFunc

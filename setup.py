@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name="pytocl",
-    version= "0.1.0",
+    version= "0.1.1",
     description="Converts Python functions to OpenCL functions",
     author="Robin Kahlow (Toraxxx)",
     author_email="xtremegosugaming@gmail.com",
@@ -11,7 +11,6 @@ setup(
     url="https://github.com/ToraxXx/pytocl",
     requires=["numpy", "pyopencl"],
     license= "MIT",
-
     package_dir={"": "src"},
     packages=["pytocl"],
 )

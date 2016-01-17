@@ -1,585 +1,127 @@
-from enum import Enum
-import ast
-import inspect
-import numpy as np
+from .descriptors import CLArgType, CLArgDesc, CLFuncDesc
+from .converter import func_to_kernel
 import pyopencl as cl
+import numpy as np
 
-class CLArgType(Enum):
-    """Type for the parameters of functions to convert"""
+class CLFunc:
+    """A list of CLFuncDescs which will get called sequentially and can
+    share CLArgDescs. Can be compiled into a callable function using the
+    compile() method.
 
-    float32 = 1,
-    float32_array = 2,
-    int32 = 3,
-    int32_array = 4,
-
-    def get_element_byte_size(t):
-        if t in [CLArgType.float32, CLArgType.float32_array, CLArgType.int32, CLArgType.int32_array]:
-            return 4
-        raise Exception("Unknown type")
-
-    def is_array(t):
-        return t == CLArgType.float32_array or t == CLArgType.int32_array
-
-class CLArgInfo():
-    """Information about the parameters of functions to convert
-    
-    Instance variables:
-    arg_type -- The CLArgType of the argument
-    is_output -- Whether the argument is used as an output
-    array_size -- The array size of the argument, 0 for scalars
-    byte_size -- The size the argument will use in bytes
-
-    Methods:
-    get_cl_type_decl -- Returns the CL type string of the parameter in the kernel
+    Instance methods:
+    compile -- compiles the CLFunc into a callable function
     """
 
-    def __init__(self, arg_type, is_output=False, array_size=0):
-        """Initializes a CLArgInfo
+    def __init__(self, *func_descs):
+        """Initializes the CL function
 
         Keyword arguments:
-        arg_type -- The CLArgType of the argument
-        is_output -- Whether the argument is used as an output (default: False)
-        array_size -- The array size of the argument, 0 for scalars (default: 0)
-
+        func_descs -- the function descriptors which will get called sequentially
         """
 
-        element_size = CLArgType.get_element_byte_size(arg_type)
+        self.func_descs = func_descs
 
-        self.arg_type = arg_type
-        self.is_output = is_output
-        self.array_size = array_size
-        self.byte_size = array_size * element_size if array_size > 0 else element_size
-
-    def get_cl_type_decl(self):
-        """Returns the CL type string of the parameter in the kernel
-
-        Uses const for non-output parameters
-        """
-
-        strings = {
-            CLArgType.float32: "float",
-            CLArgType.float32_array: "global float*",
-            CLArgType.int32: "int",
-            CLArgType.int32_array: "global int*"
-        }
-
-        decl = strings[self.arg_type]
-
-        if not self.is_output:
-            decl = "const " + decl
-
-        return decl
-
-class CLVisitor(ast.NodeVisitor):
-    """A visitor that visits each node in a function's AST and
-    generates an OpenCL kernel as a string
-    
-    Methods:
-    get_code -- Gets the generated kernel code
-    """
-
-    unary_ops = {
-        ast.UAdd: "+",
-        ast.USub: "-",
-        ast.Not: "!",
-        ast.Invert: "~"
-    }
-
-    binary_ops = {
-        ast.Add: "+",
-        ast.Sub: "-",
-        ast.Mult: "*",
-        ast.Div: "/",
-        ast.FloorDiv: "/",
-        ast.Mod: "%",
-        ast.LShift: "<<",
-        ast.RShift: ">>",
-        ast.BitOr: "|",
-        ast.BitXor: "^",
-        ast.BitAnd: "&"    
-    }
-
-    compare_ops = {
-        ast.Eq: "==",
-        ast.NotEq: "!=",
-        ast.Lt: "<",
-        ast.LtE: "<=",
-        ast.Gt: ">",
-        ast.GtE: ">=",
-        ast.Is: "==",
-        ast.IsNot: "!="
-    }
-
-    def __init__(self, func_name, dim_shape, arg_info):
-        """Initializes a new CLVisitor
+    def compile(self, context=cl.create_some_context(False)):
+        """Compiles the function and returns the clified function
 
         Keyword arguments:
-        func_name -- The name of the generated function in the kernel
-        dim_shape -- the dimension shape, len(dim_shape) must be between 1 and 3
-        arg_info -- CLArgInfo for each argument of func, excluding the first len(dim_shape) args used for dimensions
+        context -- the CL context to use (default: cl.create_some_context(False))
         """
-        super().__init__()
 
-        if len(dim_shape) <= 0 or len(dim_shape) > 3:
-            raise Exception("Unsupported dimension size " + str(len(dim_shape)))
+        # Collect all argument descriptors in the functions and add them 
+        # to lists depending on whether they are used as inputs or outputs
 
-        self.func_name = func_name
-        self.dim_shape = dim_shape
-        self.arg_info = arg_info
+        all_args = []
+        arg_used_as_input = []
+        arg_used_as_output = []
+
+        for func_desc in self.func_descs:
+            for arg_desc in func_desc.arg_descs:
+                is_output = func_desc.is_output[arg_desc]
+
+                if not is_output and not arg_desc in arg_used_as_input:
+                    arg_used_as_input.append(arg_desc)
+
+                if is_output and not arg_desc in arg_used_as_output:
+                    arg_used_as_output.append(arg_desc)
+
+                if not arg_desc in all_args:
+                    all_args.append(arg_desc)
+
+        # Create the CL Buffers for each arguments
+        # used only as input: READ_ONLY
+        # used only as output: WRITE_ONLY
+        # used as both input and output: READ_WRITE
+        # scalar parameters get None for their buffers and get passed directly
+
+        buffers = {}
+
+        def get_arg_desc_mem_flag(arg_desc):
+            if arg_desc in arg_used_as_input and arg_desc in arg_used_as_output:
+                return cl.mem_flags.READ_WRITE
+            elif arg_desc in arg_used_as_input:
+                return cl.mem_flags.READ_ONLY
+            elif arg_desc in arg_used_as_output:
+                return cl.mem_flags.WRITE_ONLY
+            raise Exception("Argument neither in inputs nor in outputs")
         
-        self.indent = 0        
-        self.code = []
-
-        self.declared_vars = [[]]
-        
-    def is_var_declared(self, var):
-        return any([var in block_vars for block_vars in self.declared_vars])
-
-    def declare_var(self, var):
-        self.declared_vars[-1].append(var)
-
-    def push_block(self):
-        self.indent += 1
-        self.declared_vars.append([])
-
-    def pop_block(self):
-        self.indent -= 1
-        self.declared_vars.pop()
-
-    def get_code(self):
-        """Returns the generated kernel code"""
-        return "\n".join(self.code)
-        
-    def append(self, s):
-        self.code[-1] += s
-
-    def write(self, line):
-        self.code.append("    " * self.indent + line)
-        
-    def visit_FunctionDef(self, node):
-        if node.name != self.func_name:
-            raise Exception("Node function name is not identical with passed name")
-        
-        func_args = [arg.arg for arg in node.args.args]
-
-        self.write("kernel void " + self.func_name + "(")
-
-        dim_count = len(self.dim_shape)
-
-        # Write arguments
-        # TODO: Check whether args are identical to tree args
-        self.append(",".join([self.arg_info[i].get_cl_type_decl() + " " + arg for i, arg in enumerate(func_args[dim_count:])]))
-        self.append(")")
-
-        self.write("{")
-        self.push_block()
-
-        # Write dimension ints
-        for i in range(len(self.dim_shape)):
-            var_name = func_args[i]
-            self.write("int " + var_name + "=get_global_id(" + str(i) + ");")
-            self.declare_var(var_name)
-
-        for arg in func_args:
-            self.declare_var(arg)
-
-        self.generic_visit(node)
-
-        self.pop_block()
-
-        self.write("}")
-
-    def visit_Name(self, node):
-        if not self.is_var_declared(node.id):
-            if not isinstance(node.ctx, ast.Store):
-                raise Exception("Tried to load or delete a variable which was not yet declared")
-
-            self.declare_var(node.id)
-
-            # TODO: Proper type inference
-            type_name = "float"
-            if node.id.startswith("i_"):
-                type_name = "int"
-            elif node.id.startswith("b_"):
-                type_name = "bool"
-
-            self.append(type_name + " " + node.id)
-        else:
-            self.append(node.id)
-
-    def visit_Num(self, node):
-        s = str(node.n)
-        if isinstance(node.n, float):
-            if "." in s:
-                s += "f"
+        for arg_desc in all_args:
+            if not CLArgType.is_array(arg_desc.arg_type):
+                buffers[arg_desc] = None
             else:
-                s += ".f"
-
-        self.append(s)
-
-    def visit_NameConstant(self, node):
-        value = node.value
-
-        if value == True:
-            self.append("true")
-        elif value == False:
-            self.append("false")
-        elif value == None:
-            self.append("NULL")
-        else:
-            raise Exception("Unknown Name Constant")
-
-    def visit_String(self, node):
-        self.append(node.s)
-
-    def visit_UnaryOp(self, node):
-        op_type = type(node.op)
-
-        self.append("(")
-
-        if not op_type in CLVisitor.unary_ops:
-            raise Exception("Unknown unary op " + str(op_type))
-
-        self.append(CLVisitor.unary_ops[op_type])
-        self.visit(node.operand)
-
-        self.append(")")
-
-    def visit_BoolOp(self, node):
-        op = node.op
-        values = node.values
-
-        str_op = None 
-
-        self.append("(")
-
-        if isinstance(op, ast.And):
-            str_op = "&&"
-        elif isinstance(op, ast.Or):
-            str_op = "||"
-        else:
-            raise Exception("Unsupported bool op " + str(type(op)))
-
-        for i, value in enumerate(values):
-            self.visit(value)
-            if i != len(values)-1:
-                self.append(str_op)
-
-        self.append(")")
-
-    def visit_Compare(self, node):
-        values = [node.left] + node.comparators
-        ops = node.ops
-
-        self.append("(")
-
-        for i in range(len(values)-1):
-            op_type = type(ops[i])
-
-            if not op_type in CLVisitor.compare_ops:
-                raise Exception("Unsupported compare op " + str(op_type))
-
-            self.visit(values[i])
-            self.append(CLVisitor.compare_ops[op_type])
-            self.visit(values[i+1])
-
-            if i != len(values)-2:
-                self.append("&&")
-
-        self.append(")")
-
-    def visit_BinOp(self, node):
-        left = node.left
-        right = node.right
-        op_type = type(node.op)
-
-        self.append("(")
-
-        if op_type == ast.Pow:
-            self.append("pow(")
-            self.visit(left)
-            self.append(",")
-            self.visit(right)
-            self.append(")")
-        elif op_type in CLVisitor.binary_ops:
-            self.visit(left)
-            self.append(CLVisitor.binary_ops[op_type])
-            self.visit(right)
-        else:
-            raise Exception("Unsupported bin op " + str(op_type))
-
-        self.append(")")
-
-    def visit_Expr(self, node):
-        self.write("")
-        self.generic_visit(node)
-        self.append(";")
-
-    def visit_Assign(self, node):
-        targets = node.targets
-        value = node.value
-
-        for target in targets:
-            self.write("")
-            self.visit(target)
-            self.append("=")
-            self.visit(value)
-            self.append(";")
-
-    def visit_AugAssign(self, node):
-        target = node.target
-        op_type = type(node.op)
-        value = node.value
-
-        if op_type in CLVisitor.binary_ops:
-            self.write("")
-            self.visit(target)
-            self.append(CLVisitor.binary_ops[op_type] + "=")
-            self.visit(value)
-            self.append(";")
-        else:
-            raise Exception("Unsupported bin op " + str(op_type))
-
-    def visit_Subscript(self, node):
-        value = node.value
-        slice = node.slice
-        
-        if not isinstance(slice, ast.Index):
-            raise Exception("Only single index subscripts are supported")
-
-        self.visit(value)
-        self.append("[")
-        self.visit(slice)
-        self.append("]")
-
-    def visit_If(self, node):
-        test = node.test
-        bodies = node.body
-        orelses = node.orelse
-
-        self.write("if(")
-        self.visit(test)
-        self.append(")")
-        self.write("{")
-        self.push_block()
-        for body in bodies:
-            self.visit(body)
-        self.pop_block()
-        self.write("}")
-
-        if len(orelses) > 0:
-            self.write("else")
-            self.write("{")
-            self.push_block()
-            for orelse in orelses:
-                self.visit(orelse)
-            self.pop_block()
-            self.write("}")
-
-    def visit_For(self, node):
-        iter_var = node.target
-        iter = node.iter
-        body = node.body
-        orelse = node.orelse # TODO
-
-        if len(orelse) != 0:
-            raise NotImplementedError("For loop orelse not yet implemented")
-
-        # Check that the iter function is range()
-        if not isinstance(iter, ast.Call) or not isinstance(iter.func, ast.Name) or not iter.func.id == "range":
-            raise Exception("Unsupported for loop:", ast.dump(node))
-
-        # Handle the different arguments of range()
-        if len(iter.args) == 1:
-            self.write("for(int " + iter_var.id + "=0;" + iter_var.id + "<")
-            self.visit(iter.args[0])
-            self.append(";" + iter_var.id + "++)")
-        elif len(iter.args) == 2:
-            self.write("for(int " + iter_var.id + "=")
-            self.visit(iter.args[0])
-            self.append(";" + iter_var.id + "<")
-            self.visit(iter.args[1])
-            self.append(";" + iter_var.id + "++)")
-        elif len(iter.args) == 3:
-            self.write("for(int " + iter_var.id + "=")
-            self.visit(iter.args[0])
-            self.append(";" + iter_var.id + "<")
-            self.visit(iter.args[1])
-            self.append(";" + iter_var.id + "+=")
-            self.visit(iter.args[2])
-            self.append(")")
-
-        self.write("{")
-
-        self.push_block()
-
-        self.declare_var(iter_var.id)
-
-        for b in body:
-            self.visit(b)
-
-        self.pop_block()
-
-        self.write("}")
-
-    def visit_While(self, node):
-        test = node.test
-        body = node.body
-        orelse = node.orelse # TODO
-
-        if len(orelse) != 0:
-            raise NotImplementedError("For loop orelse not yet implemented")
-
-        self.write("while(")
-        self.visit(test)
-        self.append(")")
-
-        self.write("{")
-
-        self.push_block()
-
-        for b in body:
-            self.visit(b)
-
-        self.pop_block()
-
-        self.write("}")
-
-    def visit_Break(self, node):
-        self.write("break;")
-
-    def visit_Continue(self, node):
-        self.write("continue;")
-
-    def visit_IfExp(self, node):
-        test = node.test
-        body = node.body
-        orelse = node.orelse
-
-        self.visit(test)
-        self.append("?")
-        self.visit(body)
-        self.append(":")
-        self.visit(orelse)
-
-    def visit_Call(self, node):
-        func = node.func
-        args = node.args
-        keyword = node.keywords
-
-        if not isinstance(func, ast.Name):
-            raise Exception("Unsupported function call")
-
-        # TODO: Check if function is supported
-        self.append(func.id)
-
-        self.append("(")
-
-        for i, arg in enumerate(args):
-            self.visit(arg)
-            if i != len(args)-1:
-                self.append(",")
-
-        self.append(")")
-
-def func_to_kernel(func, dim_shape, arg_info):
-    """Converts a python function to an OpenCL kernel as a string
-
-    Keyword arguments:
-    func -- the function to convert
-    dim_shape -- the dimension shape, len(dim_shape) must be between 1 and 3
-    arg_info -- CLArgInfo for each argument of func, excluding the first len(dim_shape) args used for dimensions
-    """
-
-    func_name = func.__name__
-
-    source = inspect.getsource(func)
-
-    # Remove the unused indents (when a function isnt declared at root)
-    unused_indents = source.split("def", 1)[0]
-
-    # Make sure all characters are tabs or spaces
-    assert(all([c == " " or c == "\t" for c in unused_indents]))
-
-    source = source[len(unused_indents):].replace("\n" + unused_indents, "\n")
-
-    tree = ast.parse(source)
-
-    visitor = CLVisitor(func_name, dim_shape, arg_info)
-    visitor.visit(tree)
-
-    return visitor.get_code()
-
-def clify(func, dim_shape, arg_info, context=cl.create_some_context(False)):
-    """Converts a python function to an OpenCL function
-
-    eg. func(dim1, input, output) -> cl_func(input, output)
-
-    Passing None as an argument to the returned function will not copy anything 
-    for the argument and keep the already existing data for that argument
-
-    Keyword arguments:
-    func -- the function to convert
-    dim_shape -- the dimension shape, len(dim_shape) must be between 1 and 3
-    arg_info -- CLArgInfo for each argument of func, excluding the first len(dim_shape) args used for dimensions
-    context -- the OpenCL context to execute in (default cl.create_some_context(False))
-    """
-
-    func_name = func.__name__
-
-    # Convert the function to a kernel string
-    kernel = func_to_kernel(func, dim_shape, arg_info)
-
-    buffers = []
+                buffers[arg_desc] = cl.Buffer(context, get_arg_desc_mem_flag(arg_desc), arg_desc.byte_size)
     
-    queue = cl.CommandQueue(context)
+        # Generate the kernels and compile them, only generate each function name once
+        # TODO: Fix potential conflict with two functions with same names
 
-    # Create a CL buffer for each array type parameter
-    for info in arg_info:
-        if not CLArgType.is_array(info.arg_type):
-            buffers.append(None)
-        else:
-            buffers.append(cl.Buffer(context, cl.mem_flags.WRITE_ONLY if info.is_output else cl.mem_flags.READ_ONLY, info.byte_size))
-    
-    # Compile the kernel, callable with program.func_name after this step
-    program = cl.Program(context, kernel).build()
+        kernels = {}
+        for func_desc in self.func_descs:
+            if not func_desc.func_name in kernels.keys():
+                kernels[func_desc.func_name] = func_to_kernel(func_desc)
+        program = cl.Program(context, "\n".join(kernels.values())).build()
 
-    def cl_func(*args):
-        """Calls the clified function with all original arguments except for the global ids"""
+        # Create the queue used to enqueue copies
+        queue = cl.CommandQueue(context)
 
-        cl_args = []
+        def cl_func(args):
+            """Executes the clified function
 
-        # Check that the non-scalar arguments are numpy types
-        if any([arg is not None and CLArgType.is_array(arg_info[i].arg_type) and not isinstance(arg, np.ndarray) for i, arg in enumerate(args)]):
-            raise Exception("At least one non-scalar argument passed is not a numpy ndarray")
+            Keyword arguments:
+            args -- A dictionary containing numpy arrays for each CLArgDesc 
+                    used as a copy input or copy output. 
+                    Input copies can be missing or None if they are arrays so they won't get copied.
+            """
 
-        # Check that the output arguments are not None
-        if any([arg_info[i].is_output and arg is None for i, arg in enumerate(args)]):
-            raise Exception("At least one output argument passed was None")
+            def get_arg_for_desc(arg_desc):
+                return args[all_args.index(arg_desc)]
 
-        # Prepare arguments
-        for i, info in enumerate(arg_info):
-            # Replace None by the raw input, used by scalars
-            if buffers[i] == None:
-                # Convert standard number types to buffer interface
-                if not isinstance(args[i], np.ndarray):
-                    cl_args.append(np.array(args[i]))
-                else:
-                    cl_args.append(args[i])
-            else:
-                cl_args.append(buffers[i])
+            for func_desc in self.func_descs:
+                # Copy inputs
+                for arg_desc in func_desc.copy_in_args:
+                    # Allow not passing args for input-copies, those wont get copied
+                    if arg_desc in args.keys() or args[arg_desc] is not None:
+                        # If a buffer is none it means the argument is a scalar and is used directly
+                        if buffers[arg_desc] is not None:
+                            cl.enqueue_copy(queue, buffers[arg_desc], args[arg_desc])
 
-                # Queue input copying, None means no copying should be done (eg. already copied previously)
-                if not info.is_output and args[i] is not None:
-                    cl.enqueue_copy(queue, buffers[i], args[i])
+                # Create the parameter list for the function
+                cl_args = []
+                for arg_desc in func_desc.arg_descs:
+                    buffer = buffers[arg_desc]
 
-        # Execute the compiled func
-        prog_func = getattr(program, func_name)
-        prog_func(queue, dim_shape, None, *cl_args)
+                    # Use scalar arguments (buffer=None) directly, convert to ndarray if needed
+                    if buffer is None:
+                        arg = args[arg_desc]
+                        cl_args.append(arg if isinstance(arg, np.ndarray) else np.array(arg))
+                    else:
+                        cl_args.append(buffer)
 
-        # Copy output
-        for i, info in enumerate(arg_info):
-            if info.is_output:
-                cl.enqueue_copy(queue, args[i], buffers[i])
+                # Execute
+                prog_func = getattr(program, func_desc.func_name)
+                prog_func(queue, func_desc.dim, None, *cl_args)
 
-    return cl_func
+                # Copy outputs
+                for arg_desc in func_desc.copy_out_args:
+                    cl.enqueue_copy(queue, args[arg_desc], buffers[arg_desc])
+
+        return cl_func

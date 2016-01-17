@@ -1,4 +1,4 @@
-from pytocl import clify, CLArgInfo, CLArgType
+from pytocl import CLArgType, CLArgDesc, CLFuncDesc, CLFunc
 from testcode import matrix_mult, nn_layer
 import pyopencl as cl
 import numpy as np
@@ -43,6 +43,9 @@ class Benchmark:
 
         return clock() - start_time
 
+def get_cl_context(device_type):
+    return cl.Context(cl.get_platforms()[0].get_devices(device_type))
+
 def get_cl_mat_mult(shape_a, shape_b, device_type):
     shape_output = (shape_a[0], shape_b[1])
 
@@ -55,18 +58,23 @@ def get_cl_mat_mult(shape_a, shape_b, device_type):
     b = np.random.rand(*shape_b).astype(np.float32).flatten()
     output = np.zeros((shape_a[0], shape_b[1])).astype(np.float32).flatten()
 
-    arg_info = [
-        CLArgInfo(CLArgType.float32_array, array_size = shape_a_size), # a
-        CLArgInfo(CLArgType.float32_array, array_size = shape_b_size), # b
-        CLArgInfo(CLArgType.int32), # r_a
-        CLArgInfo(CLArgType.int32), # r_b
-        CLArgInfo(CLArgType.float32_array, array_size = shape_output_size, is_output = True) # float* output
-    ]
+    desc_a = CLArgDesc(CLArgType.float32_array, shape_a_size)
+    desc_b = CLArgDesc(CLArgType.float32_array, shape_b_size)
+    desc_rows_a = CLArgDesc(CLArgType.int32)
+    desc_rows_b = CLArgDesc(CLArgType.int32)
+    desc_output = CLArgDesc(CLArgType.float32_array, shape_output_size)
 
-    func_clified = clify(matrix_mult, shape_output, arg_info, cl.Context(cl.get_platforms()[0].get_devices(device_type)))
+    func_desc = (CLFuncDesc(matrix_mult, shape_output)
+                .arg(desc_a).copy_in() # a
+                .arg(desc_b).copy_in() # b
+                .arg(desc_rows_a).copy_in() # rows a
+                .arg(desc_rows_b).copy_in() # rows b
+                .arg(desc_output, True).copy_out()) # output
+
+    func_clified = CLFunc(func_desc).compile(get_cl_context(device_type))
 
     def cl_func():
-        func_clified(a, b, shape_a[0], shape_b[0], output)
+        func_clified({desc_a: a, desc_b: b, desc_rows_a: shape_a[0], desc_rows_b: shape_b[0], desc_output: output})
 
     return cl_func
 
@@ -100,22 +108,29 @@ def get_cl_nn_layer(shape_input, shape_weights, device_type):
     bias = np.float32(np.random.rand())
     output = np.zeros((shape_input[0], shape_weights[1])).astype(np.float32).flatten()
 
-    arg_info = [
-        CLArgInfo(CLArgType.float32_array, array_size = shape_input_size), # input
-        CLArgInfo(CLArgType.float32_array, array_size = shape_weights_size), # weights
-        CLArgInfo(CLArgType.int32), # r_input
-        CLArgInfo(CLArgType.int32), # r_weights
-        CLArgInfo(CLArgType.float32), # bias
-        CLArgInfo(CLArgType.float32_array, array_size = shape_output_size, is_output = True) # float* output
-    ]
+    desc_input = CLArgDesc(CLArgType.float32_array, shape_input_size)
+    desc_weights = CLArgDesc(CLArgType.float32_array, shape_weights_size)
+    desc_rows_input = CLArgDesc(CLArgType.int32)
+    desc_rows_weights = CLArgDesc(CLArgType.int32)
+    desc_bias = CLArgDesc(CLArgType.int32)
+    desc_output = CLArgDesc(CLArgType.float32_array, shape_output_size)
 
-    func_clified = clify(nn_layer, shape_output, arg_info, cl.Context(cl.get_platforms()[0].get_devices(device_type)))
+    func_desc = (CLFuncDesc(nn_layer, shape_output)
+                .arg(desc_input).copy_in() # input
+                .arg(desc_weights).copy_in() # weights
+                .arg(desc_rows_input).copy_in() # rows_input
+                .arg(desc_rows_weights).copy_in() # rows_weights
+                .arg(desc_bias).copy_in() # bias
+                .arg(desc_output, True).copy_out()) # output
+
+    func_clified = CLFunc(func_desc).compile(get_cl_context(device_type))
 
     # Copy the weight matrix only once (like in a realistic scenario)
     copied = False
     def cl_func():
         nonlocal copied
-        func_clified(input, None if copied else weights, shape_input[0], shape_weights[0], bias, output)
+        func_clified({desc_input: input, desc_weights: None if copied else weights, desc_rows_input: shape_input[0], 
+                      desc_rows_weights: shape_weights[0], desc_bias: bias, desc_output: output})
         copied = True
 
     return cl_func

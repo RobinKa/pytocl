@@ -1,5 +1,5 @@
 import unittest
-from pytocl import func_to_kernel, CLArgInfo, CLArgType
+from pytocl import func_to_kernel, CLArgType, CLArgDesc, CLFuncDesc
 
 """Tests for Parameters"""
 
@@ -23,14 +23,14 @@ def output_params(dim1, out_f, out_i):
 
 class TestParameters(unittest.TestCase):
     def test_one_dim(self):
-        kernel = func_to_kernel(one_dim, (1,), [])
+        kernel = func_to_kernel(CLFuncDesc(one_dim, (1,)))
         expected_header = "kernel void one_dim()"
         self.assertIn(expected_header, kernel)
         expected_one_dim = "int dim1=get_global_id(0);"
         self.assertIn(expected_one_dim, kernel)
 
     def test_two_dim(self):
-        kernel = func_to_kernel(two_dim, (1,1), [])
+        kernel = func_to_kernel(CLFuncDesc(two_dim, (1,1)))
         expected_header = "kernel void two_dim()"
         self.assertIn(expected_header, kernel)
         expected_one_dim = "int dim1=get_global_id(0);"
@@ -39,7 +39,7 @@ class TestParameters(unittest.TestCase):
         self.assertIn(expected_two_dim, kernel)
 
     def test_three_dim(self):
-        kernel = func_to_kernel(three_dim, (1,1,1), [])
+        kernel = func_to_kernel(CLFuncDesc(three_dim, (1,1,1)))
         expected_header = "kernel void three_dim()"
         self.assertIn(expected_header, kernel)
         expected_one_dim = "int dim1=get_global_id(0);"
@@ -50,22 +50,21 @@ class TestParameters(unittest.TestCase):
         self.assertIn(expected_two_dim, kernel)
 
     def test_array(self):
-        kernel = func_to_kernel(array_params, (1,), [CLArgInfo(CLArgType.float32_array, array_size=100), CLArgInfo(CLArgType.int32_array, array_size=10)])
+        kernel = func_to_kernel(CLFuncDesc(array_params, (1,)).arg(CLArgDesc(CLArgType.float32_array, 100)).arg(CLArgDesc(CLArgType.int32_array, 10)))
         expected_header = "kernel void array_params(const global float* float_array,const global int* int_array)"
         self.assertIn(expected_header, kernel)
         expected_one_dim = "int dim1=get_global_id(0);"
         self.assertIn(expected_one_dim, kernel)
         
     def test_scalar(self):
-        kernel = func_to_kernel(scalar_params, (1,), [CLArgInfo(CLArgType.float32), CLArgInfo(CLArgType.int32)])
+        kernel = func_to_kernel(CLFuncDesc(scalar_params, (1,)).arg(CLArgDesc(CLArgType.float32, 100)).arg(CLArgDesc(CLArgType.int32, 10)))
         expected_header = "kernel void scalar_params(const float f,const int i)"
         self.assertIn(expected_header, kernel)
         expected_one_dim = "int dim1=get_global_id(0);"
         self.assertIn(expected_one_dim, kernel)
 
     def test_output(self):
-        kernel = func_to_kernel(output_params, (1,), [CLArgInfo(CLArgType.float32_array, is_output=True, array_size=100),
-                                                      CLArgInfo(CLArgType.int32_array, is_output=True, array_size=10)])
+        kernel = func_to_kernel(CLFuncDesc(output_params, (1,)).arg(CLArgDesc(CLArgType.float32_array, 100), True).arg(CLArgDesc(CLArgType.int32_array, 10), True))
         expected_header = "kernel void output_params(global float* out_f,global int* out_i)"
         self.assertIn(expected_header, kernel)
         expected_one_dim = "int dim1=get_global_id(0);"
@@ -86,7 +85,7 @@ def name_constant_literal(dim):
 
 class TestLiterals(unittest.TestCase):
     def test_num(self):
-        kernel = func_to_kernel(num_literal, (1,), [])
+        kernel = func_to_kernel(CLFuncDesc(num_literal, (1,)))
         expected_int = "i=5"
         self.assertIn(expected_int, kernel)
         expected_float = "f=3.4f"
@@ -97,7 +96,7 @@ class TestLiterals(unittest.TestCase):
         self.assertIn(expected_float_dec_post, kernel)
 
     def test_name_constant(self):
-        kernel = func_to_kernel(name_constant_literal, (1,), [])
+        kernel = func_to_kernel(CLFuncDesc(name_constant_literal, (1,)))
         expected_true = "b_true=true;"
         self.assertIn(expected_true, kernel)
         expected_false = "b_false=false;"
@@ -115,7 +114,7 @@ def comparisons(dim):
 
 class TestComparisons(unittest.TestCase):
     def test_comparisons(self):
-        kernel = func_to_kernel(comparisons, (1,), [])
+        kernel = func_to_kernel(CLFuncDesc(comparisons, (1,)))
         expected_greater = "bool b_is_greater=(a>b);"
         self.assertIn(expected_greater, kernel)
         expected_is_equal = "bool b_is_equal=(a==b);"
@@ -141,17 +140,17 @@ def for_loop_three_arg(dim):
 
 class TestForLoop(unittest.TestCase):
     def test_one_arg(self):
-        kernel = func_to_kernel(for_loop_one_arg, (1,), [])
+        kernel = func_to_kernel(CLFuncDesc(for_loop_one_arg, (1,)))
         expected_for = "for(int i=0;i<10;i++)"
         self.assertIn(expected_for, kernel)
 
     def test_two_arg(self):
-        kernel = func_to_kernel(for_loop_two_arg, (1,), [])
+        kernel = func_to_kernel(CLFuncDesc(for_loop_two_arg, (1,)))
         expected_for = "for(int i=10;i<20;i++)"
         self.assertIn(expected_for, kernel)
 
     def test_three_arg(self):
-        kernel = func_to_kernel(for_loop_three_arg, (1,), [])
+        kernel = func_to_kernel(CLFuncDesc(for_loop_three_arg, (1,)))
         expected_for = "for(int i=10;i<20;i+=2)"
         self.assertIn(expected_for, kernel)
 
@@ -163,7 +162,7 @@ def while_loop(dim):
 
 class TestWhileLoop(unittest.TestCase):
     def test_while_loop(self):
-        kernel = func_to_kernel(while_loop, (1,), [])
+        kernel = func_to_kernel(CLFuncDesc(while_loop, (1,)))
         expected_while = "while(true)"
         self.assertIn(expected_while, kernel)
 
@@ -185,19 +184,19 @@ def if_comparison(dim):
 
 class TestIfStatement(unittest.TestCase):
     def test_if_statement(self):
-        kernel = func_to_kernel(if_statement, (1,), [])
+        kernel = func_to_kernel(CLFuncDesc(if_statement, (1,)))
         expected_if = "if(true)"
         self.assertIn(expected_if, kernel)
 
     def test_if_else_statement(self):
-        kernel = func_to_kernel(if_else_statement, (1,), [])
+        kernel = func_to_kernel(CLFuncDesc(if_else_statement, (1,)))
         expected_if = "if(true)"
         self.assertIn(expected_if, kernel)
         expected_else = "else"
         self.assertIn(expected_else, kernel)
 
     def test_if_comparison(self):
-        kernel = func_to_kernel(if_comparison, (1,), [])
+        kernel = func_to_kernel(CLFuncDesc(if_comparison, (1,)))
         expected_if = "if((dim>4))"
         self.assertIn(expected_if, kernel)
 
@@ -208,7 +207,7 @@ class SomeClass:
 
 class TestMisc(unittest.TestCase):
     def test_class_func(self):
-        kernel = func_to_kernel(SomeClass.class_func, (1,), [])
+        kernel = func_to_kernel(CLFuncDesc(SomeClass.class_func, (1,)))
 
 if __name__ == "__main__":
     unittest.main()
