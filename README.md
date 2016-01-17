@@ -39,7 +39,7 @@ dim_shape = (array_size,)
 # Create the descriptors for the arguments of the function, excluding the dimension
 arg_desc_a = CLArgDesc(CLArgType.float32_array, array_size=array_size) # a
 arg_desc_b = CLArgDesc(CLArgType.float32_array, array_size=array_size) # b
-arg_desc_output = CLArgDesc(CLArgType.float32_array, array_size=array_size, is_output=True) # output
+arg_desc_output = CLArgDesc(CLArgType.float32_array, array_size=array_size) # output
 ```
 
 Next we need to create the descriptor for the function itself which has the gloabl id / dimension shape information and more information about its arguments (ie. whether they're copied from host to device before execution and whether theyre copied from device to host after execution)

@@ -12,7 +12,7 @@ dim_shape = (array_size,)
 # Create the descriptors for the arguments of the function, excluding the dimension
 arg_desc_a = CLArgDesc(CLArgType.float32_array, array_size=array_size) # a
 arg_desc_b = CLArgDesc(CLArgType.float32_array, array_size=array_size) # b
-arg_desc_output = CLArgDesc(CLArgType.float32_array, array_size=array_size, is_output=True) # output
+arg_desc_output = CLArgDesc(CLArgType.float32_array, array_size=array_size) # output
 
 """
 Create the function descriptor with the global id / dimension shape information.
