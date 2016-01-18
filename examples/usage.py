@@ -19,8 +19,7 @@ Create the function descriptor with the global id / dimension shape information.
 
 Arguments can be added by chaining .arg() calls (the argument order has to match the original
 function's argument order (ie. arg_desc_a -> a, arg_desc_b -> b, arg_desc_output -> output).
-is_output has to be set to True for arguments that are used as outputs in the function (ie.
-those that can't be declared constant).
+is_readonly has to be set to False for arguments that are assigned to in the function.
 
 copy_in() or copy_out() can be called to copy the last added argument from host to 
 device before execution or from device to host after execution.
@@ -29,7 +28,7 @@ device before execution or from device to host after execution.
 func_desc = (CLFuncDesc(parallel_add, dim_shape)
             .arg(arg_desc_a).copy_in()
             .arg(arg_desc_b).copy_in()
-            .arg(arg_desc_output, is_output=True).copy_out())
+            .arg(arg_desc_output, is_readonly=False).copy_out())
 
 # Compile the actual function, you can also pass an argument to compile with a CL context.
 # By default it uses cl.create_some_context()

@@ -63,29 +63,29 @@ class CLFuncDesc:
     Instance methods:
     arg -- adds a CLArgDesc to the function
     copy_in -- before execution, makes the function copy an already added CLArgDesc from the host to the device
-    copy_in -- after execution, makes the function copy an already added CLArgDesc from the device to the host
+    copy_out -- after execution, makes the function copy an already added CLArgDesc from the device to the host
     """
 
     def __init__(self, func, dim):
         self.func = func
         self.func_name = func.__name__
         self.dim = dim
-        self.is_output = {}
+        self.is_readonly = {}
         self.arg_descs = []
         self.copy_in_args = []
         self.copy_out_args = []
 
-    def arg(self, arg_desc, is_output=False):
+    def arg(self, arg_desc, is_readonly=True):
         """Adds an argument descriptor for the functions argument, the call order will
         and should be the same as the argument order of the original function
 
         Keyword arguments:
         arg_desc -- the argument descriptor
-        is_output -- whether the argument is used as an output (not necessarily copied, eg. for auxiliaries)
+        is_readonly -- whether the argument is read-only (ie. unassignable / const)
         """
 
         self.arg_descs.append(arg_desc)
-        self.is_output[arg_desc] = is_output
+        self.is_readonly[arg_desc] = is_readonly
         return self
 
     def copy_in(self, arg_desc=None):
@@ -93,15 +93,13 @@ class CLFuncDesc:
         function has executed.
 
         Keyword arguments:
-        arg_desc -- the argument descriptor which has to be already added by calling arg() with is_output=False
+        arg_desc -- the argument descriptor which has to be already added by calling arg()
                     if arg_desc is None, the last added argument descriptor will be used instead (default: None)
         """
 
         if arg_desc is None:
             arg_desc = self.arg_descs[-1]
 
-        if self.is_output[arg_desc]:
-            raise Exception("Arg needs to be an input argument for copying in")
         self.copy_in_args.append(arg_desc)
         return self
 
@@ -110,15 +108,17 @@ class CLFuncDesc:
         function has executed
 
         Keyword arguments:
-        arg_desc -- the argument descriptor which has to be already added by calling arg() with is_output=True
+        arg_desc -- the argument descriptor which has to be already added by calling arg() with is_readonly=False
                     if arg_desc is None, the last added argument descriptor will be used instead (default: None)
         """
 
         if arg_desc is None:
             arg_desc = self.arg_descs[-1]
 
-        if not self.is_output[arg_desc]:
-            raise Exception("Arg needs to be an output argument for copying out")
+        # Prevent read-only arguments from being used as copy-to-host-outputs since that would just be unnecessary copying
+        if self.is_readonly[arg_desc]:
+            raise Exception("Arg is marked as read-only and should not be used as an output")
+
         self.copy_out_args.append(arg_desc)
         return self
 

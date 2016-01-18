@@ -32,38 +32,38 @@ class CLFunc:
         # to lists depending on whether they are used as inputs or outputs
 
         all_args = []
-        arg_used_as_input = []
-        arg_used_as_output = []
+        arg_used_readonly = []
+        arg_used_not_readonly = []
 
         for func_desc in self.func_descs:
             for arg_desc in func_desc.arg_descs:
-                is_output = func_desc.is_output[arg_desc]
+                is_readonly = func_desc.is_readonly[arg_desc]
 
-                if not is_output and not arg_desc in arg_used_as_input:
-                    arg_used_as_input.append(arg_desc)
+                if is_readonly and not arg_desc in arg_used_readonly:
+                    arg_used_readonly.append(arg_desc)
 
-                if is_output and not arg_desc in arg_used_as_output:
-                    arg_used_as_output.append(arg_desc)
+                if not is_readonly and not arg_desc in arg_used_not_readonly:
+                    arg_used_not_readonly.append(arg_desc)
 
                 if not arg_desc in all_args:
                     all_args.append(arg_desc)
 
         # Create the CL Buffers for each arguments
-        # used only as input: READ_ONLY
-        # used only as output: WRITE_ONLY
-        # used as both input and output: READ_WRITE
+        # used only as read-only: READ_ONLY
+        # used only as not read-only: WRITE_ONLY
+        # used as both: READ_WRITE
         # scalar parameters get None for their buffers and get passed directly
 
         buffers = {}
 
         def get_arg_desc_mem_flag(arg_desc):
-            if arg_desc in arg_used_as_input and arg_desc in arg_used_as_output:
+            if arg_desc in arg_used_readonly and arg_desc in arg_used_not_readonly:
                 return cl.mem_flags.READ_WRITE
-            elif arg_desc in arg_used_as_input:
+            elif arg_desc in arg_used_readonly:
                 return cl.mem_flags.READ_ONLY
-            elif arg_desc in arg_used_as_output:
+            elif arg_desc in arg_used_not_readonly:
                 return cl.mem_flags.WRITE_ONLY
-            raise Exception("Argument neither in inputs nor in outputs")
+            raise Exception("Argument never used")
         
         for arg_desc in all_args:
             if not CLArgType.is_array(arg_desc.arg_type):

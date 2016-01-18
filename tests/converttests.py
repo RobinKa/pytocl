@@ -18,7 +18,7 @@ def array_params(dim1, float_array, int_array):
 def scalar_params(dim1, f, i):
     pass
 
-def output_params(dim1, out_f, out_i):
+def writable_params(dim1, f, i):
     pass
 
 class TestParameters(unittest.TestCase):
@@ -63,9 +63,9 @@ class TestParameters(unittest.TestCase):
         expected_one_dim = "int dim1=get_global_id(0);"
         self.assertIn(expected_one_dim, kernel)
 
-    def test_output(self):
-        kernel = func_to_kernel(CLFuncDesc(output_params, (1,)).arg(CLArgDesc(CLArgType.float32_array, 100), True).arg(CLArgDesc(CLArgType.int32_array, 10), True))
-        expected_header = "kernel void output_params(global float* out_f,global int* out_i)"
+    def test_writable(self):
+        kernel = func_to_kernel(CLFuncDesc(writable_params, (1,)).arg(CLArgDesc(CLArgType.float32_array, 100), False).arg(CLArgDesc(CLArgType.int32_array, 10), False))
+        expected_header = "kernel void writable_params(global float* f,global int* i)"
         self.assertIn(expected_header, kernel)
         expected_one_dim = "int dim1=get_global_id(0);"
         self.assertIn(expected_one_dim, kernel)

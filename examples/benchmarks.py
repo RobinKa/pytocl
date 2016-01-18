@@ -75,7 +75,7 @@ def get_cl_mat_mult(shape_a, shape_b, device_type):
                 .arg(desc_b).copy_in() # b
                 .arg(desc_rows_a).copy_in() # rows a
                 .arg(desc_rows_b).copy_in() # rows b
-                .arg(desc_output, True).copy_out()) # output
+                .arg(desc_output, False).copy_out()) # output
 
     func_clified = CLFunc(func_desc).compile(get_cl_context(device_type))
 
@@ -127,7 +127,7 @@ def get_cl_nn_layer(shape_input, shape_weights, device_type):
                 .arg(desc_rows_input).copy_in() # rows_input
                 .arg(desc_rows_weights).copy_in() # rows_weights
                 .arg(desc_bias).copy_in() # bias
-                .arg(desc_output, True).copy_out()) # output
+                .arg(desc_output, False).copy_out()) # output
 
     func_clified = CLFunc(func_desc).compile(get_cl_context(device_type))
 
@@ -192,7 +192,7 @@ def get_cl_mlp(batch_size, input_size, shape_weights_a, shape_weights_b, device_
                 .arg(desc_rows_input).copy_in()
                 .arg(desc_rows_weights_a).copy_in()
                 .arg(desc_bias_a).copy_in()
-                .arg(desc_aux_a, True))
+                .arg(desc_aux_a, False))
 
     func_desc_b = (CLFuncDesc(nn_layer, shape_output)
                 .arg(desc_aux_a)
@@ -200,7 +200,7 @@ def get_cl_mlp(batch_size, input_size, shape_weights_a, shape_weights_b, device_
                 .arg(desc_rows_aux_a).copy_in()
                 .arg(desc_rows_weights_b).copy_in()
                 .arg(desc_bias_b).copy_in()
-                .arg(desc_output, True)).copy_out()
+                .arg(desc_output, False)).copy_out()
 
     func_clified = CLFunc(func_desc_a, func_desc_b).compile(get_cl_context(device_type))
 

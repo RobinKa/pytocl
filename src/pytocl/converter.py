@@ -99,7 +99,7 @@ class CLVisitor(ast.NodeVisitor):
         arg_decls = []
         for arg, arg_desc in zip(func_args[dim_count:], self.func_desc.arg_descs):
             decl = ""
-            if not self.func_desc.is_output[arg_desc]:
+            if self.func_desc.is_readonly[arg_desc]:
                 decl += "const "
             decl += CLArgType.get_cl_type_name(arg_desc.arg_type)
             decl += " " + arg
@@ -282,7 +282,10 @@ class CLVisitor(ast.NodeVisitor):
         slice = node.slice
         
         if not isinstance(slice, ast.Index):
-            raise Exception("Only single index subscripts are supported")
+            raise Exception("Slice subscripts are not supported")
+
+        if isinstance(slice.value, ast.Tuple):
+            raise Exception("Only single dimensional subscripts are supported")
 
         self.visit(value)
         self.append("[")
