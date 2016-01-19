@@ -23,11 +23,11 @@ class CLArgType(Enum):
 
         names = {
             CLArgType.float32: "float",
-            CLArgType.float32_array: "global float*",
+            CLArgType.float32_array: "float*",
             CLArgType.int32: "int",
-            CLArgType.int32_array: "global int*",
+            CLArgType.int32_array: "int*",
             CLArgType.bool: "bool",
-            CLArgType.bool_array: "global bool*",
+            CLArgType.bool_array: "bool*",
         }
 
         name = names[t]
@@ -62,18 +62,37 @@ class CLFuncDesc:
     
     Instance methods:
     arg -- adds a CLArgDesc to the function
+    local_arg -- adds a CLArgDesc to the function for local memory
     copy_in -- before execution, makes the function copy an already added CLArgDesc from the host to the device
     copy_out -- after execution, makes the function copy an already added CLArgDesc from the device to the host
     """
 
-    def __init__(self, func, dim):
+    def __init__(self, func, global_size, local_size=None):
+        """Create a new CLFuncDesc
+
+        Keyword arguments:
+        func -- the function that will be converted
+        global_size -- the global work size
+        local size -- the local work size (default: None)
+        """
+
         self.func = func
         self.func_name = func.__name__
-        self.dim = dim
-        self.is_readonly = {}
+        self.global_size = global_size
+        self.local_size = local_size
+
         self.arg_descs = []
         self.copy_in_args = []
         self.copy_out_args = []
+
+        self.readonly_args = []
+        self.local_args = []
+
+    def is_readonly(self, arg_desc):
+        return arg_desc in self.readonly_args
+
+    def is_local(self, arg_desc):
+        return arg_desc in self.local_args
 
     def arg(self, arg_desc, is_readonly=True):
         """Adds an argument descriptor for the functions argument, the call order will
@@ -85,7 +104,25 @@ class CLFuncDesc:
         """
 
         self.arg_descs.append(arg_desc)
-        self.is_readonly[arg_desc] = is_readonly
+
+        if is_readonly:
+            self.readonly_args.append(arg_desc)
+
+        return self
+
+    def local_arg(self, arg_type, array_size):
+        """Adds an argument descriptor for the functions argument, the call order will
+        and should be the same as the argument order of the original function
+        Uses local memory
+
+        Keyword arguments:
+        arg_type -- the CLArgType of the argument
+        array_size -- the size of the array
+        """
+
+        local_arg_desc = CLArgDesc(arg_type, array_size)
+        self.arg_descs.append(local_arg_desc)
+        self.local_args.append(local_arg_desc)
         return self
 
     def copy_in(self, arg_desc=None):
@@ -99,6 +136,9 @@ class CLFuncDesc:
 
         if arg_desc is None:
             arg_desc = self.arg_descs[-1]
+
+        if self.is_local(arg_desc):
+            raise Exception("Can not copy directly from host to local memory")
 
         self.copy_in_args.append(arg_desc)
         return self
@@ -115,8 +155,11 @@ class CLFuncDesc:
         if arg_desc is None:
             arg_desc = self.arg_descs[-1]
 
+        if self.is_local(arg_desc):
+            raise Exception("Can not copy directly from local memory to host")
+
         # Prevent read-only arguments from being used as copy-to-host-outputs since that would just be unnecessary copying
-        if self.is_readonly[arg_desc]:
+        if self.is_readonly(arg_desc):
             raise Exception("Arg is marked as read-only and should not be used as an output")
 
         self.copy_out_args.append(arg_desc)

@@ -1,84 +1,87 @@
 import unittest
-from pytocl import func_to_kernel, CLArgType, CLArgDesc, CLFuncDesc
+from pytocl import *
 
 """Tests for Parameters"""
 
-def one_dim(dim1):
-    pass
+def one_dim():
+    i = get_global_id(0)
 
-def two_dim(dim1, dim2):
-    pass
+def two_dim():
+    i = get_global_id(0)
+    j = get_global_id(1)
 
-def three_dim(dim1, dim2, dim3):
-    pass
+def three_dim():
+    i = get_global_id(0)
+    j = get_global_id(1)
+    k = get_global_id(2)
 
-def array_params(dim1, float_array, int_array):
-    pass
+def array_params(float_array, int_array):
+    i = get_global_id(0)
 
-def scalar_params(dim1, f, i):
-    pass
+def scalar_params(float, int):
+    i = get_global_id(0)
 
-def writable_params(dim1, f, i):
-    pass
+def writable_params(float, int):
+    i = get_global_id(0)
 
 class TestParameters(unittest.TestCase):
     def test_one_dim(self):
         kernel = func_to_kernel(CLFuncDesc(one_dim, (1,)))
         expected_header = "kernel void one_dim()"
         self.assertIn(expected_header, kernel)
-        expected_one_dim = "int dim1=get_global_id(0);"
+        expected_one_dim = "int i=get_global_id(0);"
         self.assertIn(expected_one_dim, kernel)
 
     def test_two_dim(self):
         kernel = func_to_kernel(CLFuncDesc(two_dim, (1,1)))
         expected_header = "kernel void two_dim()"
         self.assertIn(expected_header, kernel)
-        expected_one_dim = "int dim1=get_global_id(0);"
+        expected_one_dim = "int i=get_global_id(0);"
         self.assertIn(expected_one_dim, kernel)
-        expected_two_dim = "int dim2=get_global_id(1);"
+        expected_two_dim = "int j=get_global_id(1);"
         self.assertIn(expected_two_dim, kernel)
 
     def test_three_dim(self):
         kernel = func_to_kernel(CLFuncDesc(three_dim, (1,1,1)))
         expected_header = "kernel void three_dim()"
         self.assertIn(expected_header, kernel)
-        expected_one_dim = "int dim1=get_global_id(0);"
+        expected_one_dim = "int i=get_global_id(0);"
         self.assertIn(expected_one_dim, kernel)
-        expected_two_dim = "int dim2=get_global_id(1);"
+        expected_two_dim = "int j=get_global_id(1);"
         self.assertIn(expected_two_dim, kernel)
-        expected_two_dim = "int dim3=get_global_id(2);"
+        expected_two_dim = "int k=get_global_id(2);"
         self.assertIn(expected_two_dim, kernel)
 
     def test_array(self):
         kernel = func_to_kernel(CLFuncDesc(array_params, (1,)).arg(CLArgDesc(CLArgType.float32_array, 100)).arg(CLArgDesc(CLArgType.int32_array, 10)))
         expected_header = "kernel void array_params(const global float* float_array,const global int* int_array)"
         self.assertIn(expected_header, kernel)
-        expected_one_dim = "int dim1=get_global_id(0);"
+        expected_one_dim = "int i=get_global_id(0);"
         self.assertIn(expected_one_dim, kernel)
         
     def test_scalar(self):
         kernel = func_to_kernel(CLFuncDesc(scalar_params, (1,)).arg(CLArgDesc(CLArgType.float32, 100)).arg(CLArgDesc(CLArgType.int32, 10)))
-        expected_header = "kernel void scalar_params(const float f,const int i)"
+        expected_header = "kernel void scalar_params(const float float,const int int)"
         self.assertIn(expected_header, kernel)
-        expected_one_dim = "int dim1=get_global_id(0);"
+        expected_one_dim = "int i=get_global_id(0);"
         self.assertIn(expected_one_dim, kernel)
 
     def test_writable(self):
         kernel = func_to_kernel(CLFuncDesc(writable_params, (1,)).arg(CLArgDesc(CLArgType.float32_array, 100), False).arg(CLArgDesc(CLArgType.int32_array, 10), False))
-        expected_header = "kernel void writable_params(global float* f,global int* i)"
+        expected_header = "kernel void writable_params(global float* float,global int* int)"
         self.assertIn(expected_header, kernel)
-        expected_one_dim = "int dim1=get_global_id(0);"
+        expected_one_dim = "int i=get_global_id(0);"
         self.assertIn(expected_one_dim, kernel)
 
 """Tests for Literals"""
 
-def num_literal(dim):
+def num_literal():
     i = 5
     f = 3.4
     f_dec_pre = .4
     f_dec_post = 4.
 
-def name_constant_literal(dim):
+def name_constant_literal():
     b_true = True
     b_false = False
     # TODO: Test None
@@ -104,7 +107,7 @@ class TestLiterals(unittest.TestCase):
 
 """Tests for Comparisons"""
 
-def comparisons(dim):
+def comparisons():
     a = 3
     b = 4
     b_is_greater = a > b
@@ -126,15 +129,15 @@ class TestComparisons(unittest.TestCase):
 
 """Tests for For loops"""
 
-def for_loop_one_arg(dim):
+def for_loop_one_arg():
     for i in range(10):
         pass
 
-def for_loop_two_arg(dim):
+def for_loop_two_arg():
     for i in range(10, 20):
         pass
 
-def for_loop_three_arg(dim):
+def for_loop_three_arg():
     for i in range(10, 20, 2):
         pass
 
@@ -168,18 +171,19 @@ class TestWhileLoop(unittest.TestCase):
 
 """Tests for If statements"""
 
-def if_statement(dim):
+def if_statement():
     if True:
         pass
 
-def if_else_statement(dim):
+def if_else_statement():
     if True:
         pass
     else:
         pass
 
-def if_comparison(dim):
-    if dim > 4:
+def if_comparison():
+    i = get_global_id(0)
+    if i > 4:
         pass
 
 class TestIfStatement(unittest.TestCase):
@@ -197,17 +201,53 @@ class TestIfStatement(unittest.TestCase):
 
     def test_if_comparison(self):
         kernel = func_to_kernel(CLFuncDesc(if_comparison, (1,)))
-        expected_if = "if((dim>4))"
+        expected_if = "if((i>4))"
         self.assertIn(expected_if, kernel)
 
+""" Tests for OpenCL barriers """
+
+def test_local_barrier():
+    cl_call("barrier", cl_inline("CLK_LOCAL_MEM_FENCE"))
+
+def test_global_barrier():
+    cl_call("barrier", cl_inline("CLK_GLOBAL_MEM_FENCE"))
+
+def test_local_and_global_barrier():
+    cl_call("barrier", cl_inline("CLK_LOCAL_MEM_FENCE|CLK_GLOBAL_MEM_FENCE"))
+
+class TestBarrier(unittest.TestCase):
+    def test_local_barrier(self):
+        kernel = func_to_kernel(CLFuncDesc(test_local_barrier, (1,)))
+        expected = "barrier(CLK_LOCAL_MEM_FENCE);"
+        self.assertIn(expected, kernel)
+
+    def test_global_barrier(self):
+        kernel = func_to_kernel(CLFuncDesc(test_global_barrier, (1,)))
+        expected = "barrier(CLK_GLOBAL_MEM_FENCE);"
+        self.assertIn(expected, kernel)
+
+    def test_local_and_global_barrier(self):
+        kernel = func_to_kernel(CLFuncDesc(test_local_and_global_barrier, (1,)))
+        expected = "barrier(CLK_LOCAL_MEM_FENCE|CLK_GLOBAL_MEM_FENCE);"
+        self.assertIn(expected, kernel)
+
 """ Tests for miscalleneous things """
+
 class SomeClass:
-    def class_func(dim):
+    def class_func():
         pass
+
+def return_func():
+    return
 
 class TestMisc(unittest.TestCase):
     def test_class_func(self):
         kernel = func_to_kernel(CLFuncDesc(SomeClass.class_func, (1,)))
+
+    def test_return_func(self):
+        kernel = func_to_kernel(CLFuncDesc(return_func, (1,)))
+        expected_return = "return;"
+        self.assertIn(expected_return, kernel)
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,21 +16,20 @@ A python library to seamlessly convert python functions to functions making use 
 The complete example can be found in examples/usage.py. For more examples check tests/cltest.py and examples/benchmarks.py.
 
 ## 1. Creating a function to be converted
-Create a function (or convert an existing one) to be parallelized. The first arguments will be interpreted as the dimensions / global ids. In this example we calculate `output = a + b` for vectors, so we will be using one dimension.
+Create a function (or convert an existing one) to be parallelized. In this example we calculate `output = a + b` for vectors, so we will be using one dimension. You can get the current index / global work id in the first dimension with get_global_id(0).
 
 ```python
-def parallel_add(dim1, a, b, output):
-    output[dim1] = a[dim1] + b[dim1]
+from pytocl import *
+
+def parallel_add(a, b, output):
+    i = get_global_id(0)
+    output[i] = a[i] + b[i]
 ```
 
 ## 2. Converting the function
 First we need to create the information for each argument of our function excluding the dimension parameters. For this `CLArgDesc` is used which holds information about the type of the argument as well as the `array_size` (0 for scalars) and whether the argument is used as an output (but not necessarily copied back to the host).
 
 ```python
-from pytocl import CLArgType, CLArgDesc, CLFuncDesc, CLFunc
-
-[...]
-
 # Our vectors will have 16 elements
 array_size = 16
 
@@ -56,7 +55,7 @@ copy_in() or copy_out() can be called to copy the last added argument from host 
 device before execution or from device to host after execution.
 """
 
-func_desc = (CLFuncDesc(parallel_add, dim_shape)
+func_desc = (CLFuncDesc(parallel_add, global_size)
             .arg(arg_desc_a).copy_in()
             .arg(arg_desc_b).copy_in()
             .arg(arg_desc_output, is_readonly=False).copy_out())
@@ -84,8 +83,8 @@ b = np.array([ 2 ] * array_size, dtype=np.float32)
 output = np.array([ 0 ] * array_size, dtype=np.float32)
 
 # Now we can execute the compiled function, we need to provide buffers for all output copies.
-# For input copies we could also pass None or leave them out to not copy them
-parallel_add_cl({arg_desc_a: a, arg_desc_b: b, arg_desc_output: output})
+# For input copies we could also pass None to not copy them
+parallel_add_cl(a, b, output)
 
 # output should now be a + b
 
@@ -104,11 +103,10 @@ You can also pass None for arguments only used as copy-inputs meaning no data wi
   - While loops
   - For loops currently only support range()
   - Function calls get converted to use the same name in the kernel, but the called functions themselves aren't converted if they aren't available yet (eg. currently you can `from math import exp` and use exp(x))
-  - Type inference for local variables is currently limited. Defaults to `float`, variables starting with `i_` become `int`, variables starting with `b_` become `bool`
-  - `return` is not supported, outputs have to be passed as an argument
+  - Type inference for local variables is currently limited. Defaults to `float`, variables named `i`, `j`, `k` or starting with `i_` become `int`, variables starting with `b_` become `bool`
+  - `return value` is not supported, outputs have to be passed as an argument
   - Array slices are not supported
   - List comprehensions and other python-specific constructs are not supported
-- Only global memory is used for array types
 - The source code of the function has to be available for conversion (which is often the case)
 - CUDA support?
 - Clean up the converter code

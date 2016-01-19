@@ -1,5 +1,6 @@
 import ast
 import inspect
+from copy import copy
 import pyopencl as cl
 from .descriptors import CLArgType
 
@@ -51,9 +52,12 @@ class CLVisitor(ast.NodeVisitor):
         """
         super().__init__()
 
-        if len(func_desc.dim) <= 0 or len(func_desc.dim) > 3:
-            raise Exception("Unsupported dimension size " + str(len(dim_shape)))
+        if len(func_desc.global_size) <= 0 or len(func_desc.global_size) > 3:
+            raise Exception("Unsupported dimension for global work size " + str(len(dim_shape)))
         
+        if func_desc.local_size != None and len(func_desc.local_size) != len(func_desc.global_size):
+            raise Exception("Dimensions of local work size have to match dimensions of global work size")
+
         self.func_desc = func_desc
         
         self.indent = 0        
@@ -95,12 +99,18 @@ class CLVisitor(ast.NodeVisitor):
 
         # Write arguments
         # TODO: Check whether args are identical to tree args
-        dim_count = len(self.func_desc.dim)
         arg_decls = []
-        for arg, arg_desc in zip(func_args[dim_count:], self.func_desc.arg_descs):
+        for arg, arg_desc in zip(func_args, self.func_desc.arg_descs):
             decl = ""
-            if self.func_desc.is_readonly[arg_desc]:
+            if self.func_desc.is_readonly(arg_desc):
                 decl += "const "
+
+            if self.func_desc.is_local(arg_desc):
+                decl += "local "
+            # Make all non-local arrays global by default
+            elif CLArgType.is_array(arg_desc.arg_type):
+                decl += "global "
+
             decl += CLArgType.get_cl_type_name(arg_desc.arg_type)
             decl += " " + arg
             arg_decls.append(decl)
@@ -109,12 +119,6 @@ class CLVisitor(ast.NodeVisitor):
         self.append(")")
         self.write("{")
         self.push_block()
-
-        # Write and declare dimension ints
-        for i in range(len(self.func_desc.dim)):
-            var_name = func_args[i]
-            self.write("int " + var_name + "=get_global_id(" + str(i) + ");")
-            self.declare_var(var_name)
 
         # Declare arguments
         for arg in func_args:
@@ -129,13 +133,13 @@ class CLVisitor(ast.NodeVisitor):
     def visit_Name(self, node):
         if not self.is_var_declared(node.id):
             if not isinstance(node.ctx, ast.Store):
-                raise Exception("Tried to load or delete a variable which was not yet declared")
+                raise Exception("Tried to load or delete a variable which was not yet declared: " + node.id)
 
             self.declare_var(node.id)
 
             # TODO: Proper type inference
             type_name = "float"
-            if node.id.startswith("i_"):
+            if node.id.startswith("i_") or node.id in ["i", "j", "k"]:
                 type_name = "int"
             elif node.id.startswith("b_"):
                 type_name = "bool"
@@ -404,23 +408,39 @@ class CLVisitor(ast.NodeVisitor):
 
     def visit_Call(self, node):
         func = node.func
+        func_name = func.id
         args = node.args
         keyword = node.keywords
-
+        
         if not isinstance(func, ast.Name):
             raise Exception("Unsupported function call")
 
-        # TODO: Check if function is supported
-        self.append(func.id)
+        # Handle open cl calls, set func name and trim first argument
+        if func.id == "cl_call":
+            func_name = args[0].s
+            args = copy(args[1:]) # Copy because else we're modifying the AST
+        
+        # Handle open cl flags
+        if func.id == "cl_inline":
+            self.append(args[0].s)
+        # Handle normal function calls
+        else:
+            # TODO: Check if function is supported
+            self.append(func_name)
+            self.append("(")
+            for i, arg in enumerate(args):
+                self.visit(arg)
+                if i != len(args)-1:
+                    self.append(",")
+            self.append(")")
 
-        self.append("(")
+    def visit_Return(self, node):
+        value = node.value
 
-        for i, arg in enumerate(args):
-            self.visit(arg)
-            if i != len(args)-1:
-                self.append(",")
+        if value != None:
+            raise Exception("Only empty returns are supported")
 
-        self.append(")")
+        self.write("return;")
 
 def func_to_kernel(func_desc):
     """Converts a python function to an OpenCL kernel as a string

@@ -37,7 +37,7 @@ class CLFunc:
 
         for func_desc in self.func_descs:
             for arg_desc in func_desc.arg_descs:
-                is_readonly = func_desc.is_readonly[arg_desc]
+                is_readonly = func_desc.is_readonly(arg_desc)
 
                 if is_readonly and not arg_desc in arg_used_readonly:
                     arg_used_readonly.append(arg_desc)
@@ -68,6 +68,8 @@ class CLFunc:
         for arg_desc in all_args:
             if not CLArgType.is_array(arg_desc.arg_type):
                 buffers[arg_desc] = None
+            elif func_desc.is_local(arg_desc):
+                buffers[arg_desc] = cl.LocalMemory(arg_desc.byte_size)
             else:
                 buffers[arg_desc] = cl.Buffer(context, get_arg_desc_mem_flag(arg_desc), arg_desc.byte_size)
     
@@ -83,7 +85,7 @@ class CLFunc:
         # Create the queue used to enqueue copies
         queue = cl.CommandQueue(context)
 
-        def cl_func(args):
+        def cl_func(*args):
             """Executes the clified function
 
             Keyword arguments:
@@ -92,8 +94,13 @@ class CLFunc:
                     Input copies can be missing or None if they are arrays so they won't get copied.
             """
 
-            def get_arg_for_desc(arg_desc):
-                return args[all_args.index(arg_desc)]
+            if len(args) == 1 and isinstance(args[0], dict):
+                args = args[0]
+            elif len(args) > 0:
+                arg_dict = {}
+                for i, arg in enumerate(args):
+                    arg_dict[all_args[i]] = arg
+                args = arg_dict
 
             for func_desc in self.func_descs:
                 # Copy inputs
@@ -117,7 +124,7 @@ class CLFunc:
 
                 # Execute
                 prog_func = getattr(program, func_desc.func_name)
-                prog_func(queue, func_desc.dim, None, *cl_args)
+                prog_func(queue, func_desc.global_size, func_desc.local_size, *cl_args)
 
                 # Copy outputs
                 for arg_desc in func_desc.copy_out_args:

@@ -1,12 +1,14 @@
 import unittest
 import numpy as np
-from pytocl import CLArgType, CLArgDesc, CLFuncDesc, CLFunc
+from pytocl import *
 
-def add_func(dim, a, b, output):
-    output[dim] = a[dim] + b[dim]
+def add_func(a, b, output):
+    i = get_global_id(0)
+    output[i] = a[i] + b[i]
 
-def add_inplace_func(dim, a, b):
-    a[dim] = a[dim] + b[dim]
+def add_inplace_func(a, b):
+    i = get_global_id(0)
+    a[i] = a[i] + b[i]
 
 class SingleFuncTest(unittest.TestCase):
     def test_add_float(self):
@@ -107,6 +109,44 @@ class SequentialFuncTest(unittest.TestCase):
         cl_add({ desc_a: a, desc_b: b, desc_d: d })
         
         self.assertTrue(all([x == 8.0 for x in d]))
+
+def add_local_mem(a, b, c_local, c):
+    i = get_global_id(0)
+    j = get_local_id(0)
+    i_local_size = get_local_size(0)
+
+    c_local[j] = a[i] + b[i]
+    cl_call("barrier", cl_inline("CLK_LOCAL_MEM_FENCE"))
+    x = 0
+    for k in range(i_local_size):
+        x += c_local[k]
+
+    c[i] = x
+
+class LocalMemoryTest(unittest.TestCase):
+    def test_add_local_mem(self):
+        global_size = (64,)
+        local_size = (16,)
+
+        desc_a = CLArgDesc(CLArgType.float32_array, array_size=global_size[0])
+        desc_b = CLArgDesc(CLArgType.float32_array, array_size=global_size[0])
+        desc_c = CLArgDesc(CLArgType.float32_array, array_size=global_size[0])
+
+        desc_add_func = (CLFuncDesc(add_local_mem, global_size, local_size)
+                        .arg(desc_a).copy_in()
+                        .arg(desc_b).copy_in()
+                        .local_arg(CLArgType.float32_array, array_size=local_size[0])
+                        .arg(desc_c, False).copy_out())
+
+        cl_add = CLFunc(desc_add_func).compile()
+
+        a = 2.0 * np.ones(global_size, dtype=np.float32)
+        b = 3.0 * np.ones(global_size, dtype=np.float32)
+        c = np.zeros(global_size, dtype=np.float32)
+        cl_add({ desc_a: a, desc_b: b, desc_c: c })
+        
+        self.assertTrue(all([x == local_size[0]*5.0 for x in c]))
+    
 
 if __name__ == "__main__":
     unittest.main()
