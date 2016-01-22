@@ -147,6 +147,28 @@ class LocalMemoryTest(unittest.TestCase):
         
         self.assertTrue(all([x == local_size[0]*5.0 for x in c]))
     
+def included_func(a):
+    i = get_global_id(0)
+    a[i] = 3
+
+def including_func(a):
+    included_func(a)
+
+class MiscFuncTest(unittest.TestCase):
+    def test_include_func(self):
+        shape = (10,)
+
+        desc_a = CLArgDesc(CLArgType.float32_array, shape[0])
+
+        func = CLFunc(CLFuncDesc(including_func, shape).arg(desc_a, False).copy_in().copy_out(), 
+                      included_funcs=[CLFuncDesc(included_func, shape).arg(desc_a, False).copy_in().copy_out()]).compile()
+        
+        a = np.zeros(shape, dtype=np.float32)
+
+        func(a)
+
+        self.assertTrue(all([x == 3.0 for x in a]))
+
 
 if __name__ == "__main__":
     unittest.main()

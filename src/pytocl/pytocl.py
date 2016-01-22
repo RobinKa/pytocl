@@ -12,14 +12,15 @@ class CLFunc:
     compile -- compiles the CLFunc into a callable function
     """
 
-    def __init__(self, *func_descs):
+    def __init__(self, *func_descs, included_funcs=[]):
         """Initializes the CL function
 
         Keyword arguments:
         func_descs -- the function descriptors which will get called sequentially
         """
 
-        self.func_descs = func_descs
+        self.included_funcs = included_funcs
+        self.func_descs = list(func_descs)
 
     def compile(self, context=cl.create_some_context(False)):
         """Compiles the function and returns the clified function
@@ -76,11 +77,13 @@ class CLFunc:
         # Generate the kernels and compile them, only generate each function name once
         # TODO: Fix potential conflict with two functions with same names
 
-        kernels = {}
-        for func_desc in self.func_descs:
-            if not func_desc.func_name in kernels.keys():
-                kernels[func_desc.func_name] = func_to_kernel(func_desc)
-        program = cl.Program(context, "\n".join(kernels.values())).build()
+        kernels = []
+        kernel_names = []
+        for func_desc in self.included_funcs + self.func_descs:
+            if not func_desc.func_name in kernel_names:
+                kernel_names.append(func_desc.func_name)
+                kernels.append(func_to_kernel(func_desc))
+        program = cl.Program(context, "\n".join(kernels)).build()
 
         # Create the queue used to enqueue copies
         queue = cl.CommandQueue(context)
