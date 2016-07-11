@@ -22,11 +22,12 @@ class CLFunc:
         self.included_funcs = included_funcs
         self.func_descs = list(func_descs)
 
-    def compile(self, context=cl.create_some_context(False)):
+    def compile(self, context=cl.create_some_context(False), queue=None):
         """Compiles the function and returns the clified function
 
         Keyword arguments:
         context -- the CL context to use (default: cl.create_some_context(False))
+        queue -- the CL queue to use, creates one with the context if None is passed (default: None)
         """
 
         # Collect all argument descriptors in the functions and add them 
@@ -67,7 +68,7 @@ class CLFunc:
             raise Exception("Argument never used")
         
         for arg_desc in all_args:
-            if not CLArgType.is_array(arg_desc.arg_type):
+            if not CLArgType.is_array(arg_desc.arg_type) or arg_desc.no_alloc:
                 buffers[arg_desc] = None
             elif func_desc.is_local(arg_desc):
                 buffers[arg_desc] = cl.LocalMemory(arg_desc.byte_size)
@@ -85,15 +86,17 @@ class CLFunc:
                 kernels.append(func_to_kernel(func_desc))
         program = cl.Program(context, "\n".join(kernels)).build()
 
-        # Create the queue used to enqueue copies
-        queue = cl.CommandQueue(context)
+        # Create a queue if None was passed
+        if queue is None:
+            queue = cl.CommandQueue(context)
 
         def cl_func(*args):
             """Executes the clified function
 
             Keyword arguments:
             args -- A dictionary containing numpy arrays for each CLArgDesc 
-                    used as a copy input or copy output. 
+                    used as a copy input or copy output. Can also pass CL buffers to set buffers
+                    for arguments that are marked no_alloc
                     Input copies can be missing or None if they are arrays so they won't get copied.
             """
 
@@ -105,18 +108,26 @@ class CLFunc:
                     arg_dict[all_args[i]] = arg
                 args = arg_dict
 
+            # Make a copy of the buffers dict so we dont change the original one
+            func_buffers = buffers.copy()
+
+            # Set the buffers directly for no_alloc arguments
+            for arg_desc, x in args.items():
+                if arg_desc.no_alloc and isinstance(x, cl.Buffer):
+                    func_buffers[arg_desc] = x
+
             for func_desc in self.func_descs:
                 # Copy inputs
                 for arg_desc in func_desc.copy_in_args:
                     # Allow not passing args for input-copies or passing None, those wont get copied.
                     # If a buffer is none it means the argument is a scalar and is used directly
-                    if arg_desc in args.keys() and args[arg_desc] is not None and buffers[arg_desc] is not None:
-                            cl.enqueue_copy(queue, buffers[arg_desc], args[arg_desc])
+                    if arg_desc in args.keys() and args[arg_desc] is not None and func_buffers[arg_desc] is not None:
+                            cl.enqueue_copy(queue, func_buffers[arg_desc], args[arg_desc])
 
                 # Create the parameter list for the function
                 cl_args = []
                 for arg_desc in func_desc.arg_descs:
-                    buffer = buffers[arg_desc]
+                    buffer = func_buffers[arg_desc]
 
                     # Use scalar arguments (buffer=None) directly, convert to ndarray if needed
                     if buffer is None:
@@ -131,6 +142,6 @@ class CLFunc:
 
                 # Copy outputs
                 for arg_desc in func_desc.copy_out_args:
-                    cl.enqueue_copy(queue, args[arg_desc], buffers[arg_desc])
+                    cl.enqueue_copy(queue, args[arg_desc], func_buffers[arg_desc])
 
         return cl_func

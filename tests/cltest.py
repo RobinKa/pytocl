@@ -1,5 +1,6 @@
 import unittest
 import numpy as np
+import pyopencl as cl
 from pytocl import *
 
 def add_func(a, b, output):
@@ -146,7 +147,83 @@ class LocalMemoryTest(unittest.TestCase):
         cl_add({ desc_a: a, desc_b: b, desc_c: c })
         
         self.assertTrue(all([x == local_size[0]*5.0 for x in c]))
-    
+
+class NoAllocTest(unittest.TestCase):
+    def setUp(self):
+        self.context = cl.create_some_context(False)
+        self.queue = cl.CommandQueue(self.context)
+
+    def test_add_float(self):
+        shape = (100,)
+
+        desc_a = CLArgDesc(CLArgType.float32_array, array_size=100, no_alloc=True)
+        desc_b = CLArgDesc(CLArgType.float32_array, array_size=100)
+        desc_c = CLArgDesc(CLArgType.float32_array, array_size=100)
+
+        desc_add_func = (CLFuncDesc(add_func, shape)
+                        .arg(desc_a)
+                        .arg(desc_b).copy_in()
+                        .arg(desc_c, False).copy_out())
+
+        cl_add = CLFunc(desc_add_func).compile(self.context, self.queue)
+        
+        a = 2.0 * np.ones(shape, dtype=np.float32)
+        buffer_a = cl.Buffer(self.context, cl.mem_flags.READ_ONLY, desc_a.byte_size)
+        cl.enqueue_copy(self.queue, buffer_a, a)
+
+        b = 3.0 * np.ones(shape, dtype=np.float32)
+        c = np.zeros(shape, dtype=np.float32)
+        cl_add({ desc_a: buffer_a, desc_b: b, desc_c: c })
+        
+        self.assertTrue(all([x == 5.0 for x in c]))
+
+    def test_add_int(self):
+        shape = (100,)
+
+        desc_a = CLArgDesc(CLArgType.int32_array, array_size=100, no_alloc=True)
+        desc_b = CLArgDesc(CLArgType.int32_array, array_size=100)
+        desc_c = CLArgDesc(CLArgType.int32_array, array_size=100)
+
+        desc_add_func = (CLFuncDesc(add_func, shape)
+                        .arg(desc_a)
+                        .arg(desc_b).copy_in()
+                        .arg(desc_c, False).copy_out())
+
+        cl_add = CLFunc(desc_add_func).compile(self.context, self.queue)
+        
+        a = 2 * np.ones(shape, dtype=np.int32)
+        buffer_a = cl.Buffer(self.context, cl.mem_flags.READ_ONLY, desc_a.byte_size)
+        cl.enqueue_copy(self.queue, buffer_a, a)
+
+        b = 3 * np.ones(shape, dtype=np.int32)
+        c = np.zeros(shape, dtype=np.int32)
+        cl_add({ desc_a: buffer_a, desc_b: b, desc_c: c })
+        
+        self.assertTrue(all([x == 5 for x in c]))
+
+    def test_add_inplace(self):
+        shape = (100,)
+
+        desc_a = CLArgDesc(CLArgType.float32_array, array_size=100, no_alloc=True)
+        desc_b = CLArgDesc(CLArgType.float32_array, array_size=100)
+
+        desc_add_inplace_func = (CLFuncDesc(add_inplace_func, shape)
+                        .arg(desc_a, False)
+                        .arg(desc_b).copy_in())
+
+        cl_add_inplace = CLFunc(desc_add_inplace_func).compile(self.context, self.queue)
+
+        a = 2.0 * np.ones(shape, dtype=np.float32)
+        buffer_a = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, desc_a.byte_size)
+        cl.enqueue_copy(self.queue, buffer_a, a)
+
+        b = 3.0 * np.ones(shape, dtype=np.float32)
+        cl_add_inplace({ desc_a: buffer_a, desc_b: b })
+        
+        cl.enqueue_copy(self.queue, a, buffer_a)
+
+        self.assertTrue(all([x == 5.0 for x in a]))
+
 def included_func(a):
     i = get_global_id(0)
     a[i] = 3

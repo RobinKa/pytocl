@@ -43,19 +43,25 @@ class CLArgDesc:
     byte_size -- The size the argument will use in bytes
     """
 
-    def __init__(self, arg_type, array_size=0):
+    def __init__(self, arg_type, array_size=0, no_alloc=False):
         """Initializes a CLArgDesc
 
         Keyword arguments:
         arg_type -- the CLArgType of the argument
         array_size -- the array size of the argument, 0 for scalars (default: 0)
+        no_alloc -- whether not to allocate a buffer for this argument (default: False)
         """
+        
+        # Avoid mistakes by checking that scalars arent no_alloc
+        if no_alloc and not CLArgType.is_array(arg_type):
+            raise Exception("Argument was marked as no_alloc but was scalar (scalars dont use buffers)")
 
         element_size = CLArgType.get_element_byte_size(arg_type)
 
         self.arg_type = arg_type
         self.array_size = array_size
         self.byte_size = array_size * element_size if array_size > 0 else element_size
+        self.no_alloc = no_alloc
 
 class CLFuncDesc:
     """Descriptor for a single function call
