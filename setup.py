@@ -1,5 +1,7 @@
 from distutils.core import setup
 
+desc = open("README.md", "r").read()
+
 setup(
     name="pytocl",
     version= "0.1.1",
@@ -13,4 +15,6 @@ setup(
     license= "MIT",
     package_dir={"": "src"},
     packages=["pytocl"],
+    long_description=desc,
+    platforms=["any"],
 )

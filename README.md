@@ -2,6 +2,11 @@
 A python library to seamlessly convert python functions to functions making use of OpenCL
 
 # Setup
+`pip install pytocl`
+
+OR
+
+Clone from GitHub
 `python setup.py install`
 
 # Dependencies
